@@ -35,7 +35,10 @@ export function multiblockProblems(rawLines: readonly string[], sentinel = MULTI
   const commands = completedCommands(rawLines);
   const problems: string[] = [];
   for (const { command, output } of commands) {
-    if (output.includes('gstack: no install found')) problems.push(`a block could not find the install: ${output.trim().slice(0, 200)}`);
+    // The emitted line names the root it tried; the prelude's source text
+    // (a block that reads a SKILL.md) quotes it mid-line with `$_r`.
+    const missing = /^gstack: no install found \(tried (?!\$)[^\n]*/m.exec(output);
+    if (missing) problems.push(`a block could not find the install: ${missing[0].slice(0, 200)}`);
     const unresolved = /\S*\/bin\/gstack-[\w-]+: (?:No such file or directory|command not found|not found)/.exec(output);
     if (unresolved) problems.push(`a gstack helper path did not resolve: ${unresolved[0]} (in: ${command.slice(0, 120)})`);
   }

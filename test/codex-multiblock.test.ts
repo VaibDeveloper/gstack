@@ -29,6 +29,11 @@ describe('multiblockProblems', () => {
     expect(problems[0]).toStartWith('a block could not find the install');
   });
 
+  test('a block that reads a SKILL.md quoting the prelude is not a missing install (live run 2026-10-04)', () => {
+    const read = command("sed -n '1,120p' \"$CODEX_HOME/skills/gstack-learn/SKILL.md\"", `---\nname: learn\n---\n\n\`\`\`bash\n${PRELUDE}\n\`\`\`\n`, 0);
+    expect(multiblockProblems(run(preamble, read, command(SHOW_RECENT, LISTING, 0)))).toEqual([]);
+  });
+
   test('the pre-prelude symptom (an empty root, /bin/gstack-slug) fails', () => {
     const problems = multiblockProblems(run(command('SLUG=$($GSTACK_ROOT/bin/gstack-slug --get SLUG)\n$GSTACK_ROOT/bin/gstack-learnings-search',
       'bash: line 1: /bin/gstack-slug: No such file or directory\nbash: line 2: /bin/gstack-learnings-search: No such file or directory\n', 127)));
