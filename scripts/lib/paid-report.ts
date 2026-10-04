@@ -433,11 +433,18 @@ function trialCause(trial: PanelVerdict['trials'][number] & TrialDiagnosis & { t
  * exact test-name filter, a keyless file (its own case) by file.
  */
 export function afterRepairCommand(tier: PaidTier, id: string, file: string, trials = 1): string {
-  if (Object.hasOwn(E2E_TIERS, id)) return `bun run scripts/test-paid-shards.ts --tier ${tier} --case ${id}${trials > 1 ? ` --trials ${trials}` : ''}`;
+  if (Object.hasOwn(E2E_TIERS, id) && resolvesAlone(id)) return `bun run scripts/test-paid-shards.ts --tier ${tier} --case ${id}${trials > 1 ? ` --trials ${trials}` : ''}`;
   if (Object.hasOwn(LLM_JUDGE_TOUCHFILES, id)) {
     return `EVALS=1 EVALS_TIER=${tier} EVALS_JUDGE_SELECTION_JSON='${JSON.stringify({ version: 1, selected: [id], reason: 'after a repair' })}' bun test ${file} -t '${caseTestNamePattern([id])}'`;
   }
   return `EVALS=1 EVALS_TIER=${tier} bun test ${file}`;
+}
+
+const resolved = new Map<string, boolean>();
+/** Whether --case can select this E2E id (a case several files register runs by its shard file instead). */
+function resolvesAlone(id: string): boolean {
+  if (!resolved.has(id)) { try { caseSelection(id); resolved.set(id, true); } catch { resolved.set(id, false); } }
+  return resolved.get(id)!;
 }
 
 /** One line per non-PASS or split panel verdict. `artifacts` names each slice's artifact (slice -> name). */
