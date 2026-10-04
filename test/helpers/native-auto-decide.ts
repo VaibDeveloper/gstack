@@ -44,7 +44,7 @@ function publicProse(text: string): string {
 
 // The same current-mode field grammar owns declarations and later corrections.
 function modeField(line: string): { value: string; completed: boolean } | null {
-  const match = /^(?:(?:Correction|Actually|Update):\s*)?(?<label>(?:Review )?Mode(?: decision)?|Decision)(?: (?<status>[^:\r\n]+))?:\s*(?<value>.*)$/i.exec(line.replace(/^\s*[-*+]\s+/, '').trim());
+  const match = /^(?:(?:Correction|Actually|Update):\s*)?(?<label>(?:Review )?Mode(?: decision)?|Decision)(?: (?<status>(?:(?![.!?](?:\s|$))[^:\r\n])+))?:\s*(?<value>.*)$/i.exec(line.replace(/^\s*[-*+]\s+/, '').trim());
   if (!match) return null;
   // "Mode" and "Mode decision" are both field labels. If an explicit status
   // follows, only the completion class (including decided/selected/chosen) is
