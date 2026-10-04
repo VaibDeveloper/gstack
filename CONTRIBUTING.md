@@ -274,6 +274,13 @@ this policy. Quarantine (`CASE_QUARANTINE`) and history are described in
 `docs/TESTING_INTERNALS.md`; `bun run eval:pass-rates --case <id>` shows a
 case's per-trial pass rate with its Wilson interval.
 
+**A census went red?** Follow [docs/evals/census-red.md](docs/evals/census-red.md):
+read the red line, inspect its evidence with `bun run eval:pass-rates --run <id>`,
+check `--reds` and `--headroom`, repair with a free regression test, and only
+then spend one paid run with the line's `after a repair:` command. A red census
+on `main` is reported on the weekly tracking issue; a census dispatched on a
+branch writes the same report to its run summary and `census-report` artifact.
+
 CI enables verified first-attempt reuse for 16 workflow quality judges for
 24 hours within the same PR. The cookie workflow's custom input and the other 11
 quality cases stay fresh. PR-profile E2E shards that run once (no retry, so the
@@ -446,6 +453,9 @@ bun run eval:list            # list all eval runs (turns, duration, cost per run
 bun run eval:compare         # compare two runs — shows per-test deltas + Takeaway commentary
 bun run eval:summary         # aggregate stats + per-test efficiency averages across runs
 bun run eval:pass-rates      # per-case trial pass rates + Wilson intervals from recent weekly runs (--case, --runs, --dir, --backfill, --json, --gate); eval:flake-rank is an alias
+bun run eval:pass-rates --reds       # verdict reds per census by failure class and cause, all-green probability
+bun run eval:pass-rates --headroom   # slowest session per case vs its armed budget (alarm above 85% in --gate)
+bun run eval:pass-rates --run <id>   # one census's reds with their values and fetched transcript evidence
 ```
 
 **Detached runs for agents and long suites.** When an agent (or you, for a run

@@ -186,8 +186,12 @@ for capture, judge, and benchmark model selection.
 The design binary (`$D`) uses OpenAI's `gpt-5.5` by default, with image
 generation through `gpt-image-2`. Set `GSTACK_DESIGN_MODEL=<model>` to use
 another gpt-5-class model for both image generation and screenshot analysis;
-if OpenAI rejects it, the error names `GSTACK_DESIGN_MODEL`. Check a key
-against the defaults with `bun run design/scripts/live-model-check.ts`.
+if OpenAI rejects it, the error names `GSTACK_DESIGN_MODEL`. Set
+`GSTACK_DESIGN_IMAGE_MODEL=<gpt-image model>` to change the image tool model; a
+value that is not a gpt-image model name is refused before any request. Check a
+key against the defaults with `bun run design/scripts/live-model-check.ts`,
+which always tests the default models and ignores both overrides; the weekly
+periodic census runs the same check.
 
 **Want to add support for another agent?** See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md).
 Rendering a new agent is one TypeScript config file; installing it also needs a

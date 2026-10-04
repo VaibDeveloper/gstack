@@ -242,6 +242,35 @@ contains no parsable version. /ship stops instead of inventing `0.0.0.0`.
 
 **Expected result.** `gstack-version-bump classify` prints the current version.
 
+<a id="review-base-stale"></a>
+### `BASE_REFRESH: stale <rev>` / `Base coverage: stale at <rev>`
+
+**Meaning.** /review could not fetch the base branch (offline, no credentials,
+or a read-only `.git` such as Codex's sandbox), so it reviewed against your
+local `origin/<base>` at `<rev>`.
+
+**Fix.** Run `git fetch origin <base>` outside the sandbox and rerun /review if
+the base has moved.
+
+<a id="review-fingerprint-tmpdir"></a>
+### `gstack-wtree: cannot create a temp index under <dir>; set TMPDIR to a writable directory` / `gstack-review-log: cannot create a private object directory under <dir>; no working-tree fingerprint. Set TMPDIR to a writable directory.`
+
+**Meaning.** /review fingerprints the working tree in a private temporary
+object directory (Codex's sandbox keeps `.git` read-only). The temp directory
+could not be created, so this review has no fingerprint and later steps cannot
+reuse its evidence.
+
+**Fix.** `export TMPDIR=<a writable directory>`, then run /review again.
+
+<a id="review-fingerprint-stage"></a>
+### `gstack-wtree: cannot stage the working tree: <git error>`
+
+**Meaning.** The fingerprint's objects could not be written. Standalone
+`gstack-wtree` writes into the repository's object store.
+
+**Fix.** Run it through /review (`gstack-review-log` supplies a private object
+directory), or make `.git/objects` writable.
+
 <a id="plan-audit-not-run"></a>
 ### `Plan completion audit: not run (no plan is bound to this branch and no docs/designs/ file matches). Fix: ...`
 
@@ -307,30 +336,6 @@ Or stop the reminder: `gstack-slug --adopt-legacy --dismiss <slug>`.
 
 ---
 
-<a id="review-base-stale"></a>
-### `BASE_REFRESH: stale <rev>` / `Base coverage: stale at <rev>`
-
-**Meaning.** /review could not fetch the base branch (offline, no credentials,
-or a read-only `.git` such as Codex's sandbox), so it reviewed against your
-local `origin/<base>` at `<rev>`.
-
-**Fix.** Run `git fetch origin <base>` outside the sandbox and rerun /review if
-the base has moved.
-
-<a id="review-fingerprint-objects"></a>
-### `gstack-review-log: cannot create a private object directory under <dir>; no working-tree fingerprint.` / `gstack-wtree: cannot create a temp index under <dir>`
-
-**Meaning.** The working-tree fingerprint needs a writable temp directory.
-
-**Fix.** `export TMPDIR=<writable dir>` and rerun.
-
-### `gstack-wtree: cannot stage the working tree: ...` / `gstack-wtree: cannot write the tree: ...`
-
-**Meaning.** The object directory could not be written. `gstack-review-log`
-supplies a private one; standalone `gstack-wtree` writes to `.git/objects`.
-
-**Fix.** Run it through `gstack-review-log`, or make `.git/objects` writable.
-
 ## Design skills
 
 <a id="design-not-available"></a>
@@ -353,6 +358,15 @@ If the message names a missing timeout tool, install coreutils (`gtimeout`) or p
 
 **Expected result.** The next design skill prints `DESIGN_READY`.
 
+<a id="design-image-model-invalid"></a>
+### `GSTACK_DESIGN_IMAGE_MODEL="<value>" is not a gpt-image model name (expected something like gpt-image-2); fix it or unset it to use gpt-image-2`
+
+**Meaning.** The design binary refuses an image tool model override that is not
+a `gpt-image-*` model name, before sending any request.
+
+**Fix.** `export GSTACK_DESIGN_IMAGE_MODEL=gpt-image-2` (or another gpt-image
+model your key can use), or `unset GSTACK_DESIGN_IMAGE_MODEL`.
+
 <a id="design-taste-profile-unavailable"></a>
 ### `TASTE_PROFILE_UNAVAILABLE: could not resolve the project slug (gstack-slug failed). Fix: run ./setup.`
 
@@ -374,15 +388,6 @@ buys the same image twice and never overwrites an existing image.
 pick a new `--output`), then copy the recovery file to where you want it.
 
 ---
-
-<a id="design-image-model-invalid"></a>
-### `GSTACK_DESIGN_IMAGE_MODEL="..." is not a gpt-image model name`
-
-**Meaning.** The image model override must look like `gpt-image-2`; anything
-else is refused before a request is sent. The live model check always tests
-the defaults, whatever this is set to.
-
-**Fix.** Set a gpt-image model name, or `unset GSTACK_DESIGN_IMAGE_MODEL`.
 
 ## Codex and other env-var hosts
 
@@ -446,30 +451,35 @@ stopped instead of touching your project.
 ## Setup and auto-update
 
 <a id="bun-too-old"></a>
-### `gstack needs Bun 1.3.3 or newer (1.4.0 recommended); found X at <path>. Nothing was installed or changed.`
+### `gstack needs Bun 1.3.3 or newer (1.4.0 recommended); found <version> at <path>. Nothing was installed or changed.`
 
-Also: `warning: gstack is tested on Bun 1.4.0 (CI pin); found X` and
-`warning: could not read the Bun version (...); continuing.`
-
-**Meaning.** Bun older than 1.3.3 accepts but ignores the flags that stop
+**Meaning.** Bun older than 1.3.3 silently ignores the build flags that stop
 gstack's compiled tools from reading a project's `.env`, so setup refuses it
-before writing anything. Bun 1.3.3 to 1.3.x works but is untested; an
-unreadable version only warns.
+before writing anything. The same link appears on two warnings that do not stop
+setup: `warning: gstack is tested on Bun 1.4.0 (CI pin); found <version>` (1.3.3
+up to 1.4.0 works but is untested) and `warning: could not read the Bun version
+(...)` (setup continued; check `bun --version`).
 
-**Fix.** `bun upgrade`, then `./setup`.
+**Fix.**
+
+```bash
+bun upgrade
+./setup
+```
+
+**Expected result.** `bun --version` prints 1.4.0 or newer and setup finishes
+with no Bun warning.
 
 <a id="auto-update-bun-too-old"></a>
-### `gstack auto-update: update held (bun-too-old: found Bun X at <path>; gstack V needs F or newer); nothing was installed or changed.`
+### `gstack auto-update: update held (bun-too-old: found Bun <version> at <path>; gstack <version> needs <floor> or newer); nothing was installed or changed. Fix now: ...`
 
-Also `/gstack-upgrade`'s `BUN_TOO_OLD: bun-too-old: ...; nothing was changed`.
+**Meaning.** Team-mode auto-update fetched a release whose setup needs a newer
+Bun than the one setup would run. It left your checkout and installed skills at
+the current revision and prints this line once per session start. (An older
+auto-updater running its first update cannot make this check.)
 
-**Meaning.** The incoming release needs a newer Bun than the one setup would
-run, so the update stopped before moving your checkout. Your installed version
-keeps working. The first update run by an auto-updater older than this check
-cannot do it.
-
-**Fix.** `bun upgrade`. The next session start resumes the update, or run
-`cd <gstack checkout> && git pull --ff-only && ./setup` (or `/gstack-upgrade`).
+**Fix.** `bun upgrade`; the next session start resumes the update. To update
+now: `bun upgrade && cd <gstack checkout> && git pull --ff-only && ./setup`.
 
 <a id="auto-update-incomplete"></a>
 ### `gstack auto-update: setup did not finish (<reason>); installed skills may be out of date. gstack retries automatically. Fix now: cd <dir> && ./setup`
@@ -581,16 +591,19 @@ after `--`).
 
 **Fix.** `cd <gstack checkout> && ./setup` (or `/unfreeze`).
 
----
-
 <a id="browse-chromium-pid-unrecorded"></a>
-### `[browse] Could not record the Chromium PID (CDP SystemInfo.getProcessInfo: ...); browse stop cannot reap a surviving Chromium.`
+### `[browse] Could not record the Chromium PID (CDP SystemInfo.getProcessInfo: <error>); browse stop cannot reap a surviving Chromium.`
 
-**Meaning.** gstack reads the PID of a browser it launched over CDP so `browse
-stop` can clean up a Chromium that outlives the server. That read failed, so
-this session's browser is not reaped automatically.
+**Meaning.** For a headless Chromium it launched, browse reads the browser's
+process id over CDP so `browse stop` can kill a browser that outlives the
+server. That read failed or took longer than 2 seconds, so this session's
+browser is not recorded. Browsers gstack did not launch are never recorded or
+killed.
 
-**Fix.** After `browse stop`, check `ps` for a leftover Chromium and kill it by hand.
+**Fix.** After `browse stop`, check for a leftover browser with
+`ps aux | grep -i chrom` and end it with `kill <pid>`.
+
+---
 
 ## Memory and gbrain
 
@@ -665,6 +678,104 @@ gstack-gbrain-sync --prune-gone-worktrees
 
 ---
 
+## Eval reports and pass-rates
+
+These come from the paid eval census reports and `bun run eval:pass-rates`.
+The walkthrough for a red census is [docs/evals/census-red.md](evals/census-red.md).
+
+<a id="pass-rates-unknown-flag"></a>
+### `eval:pass-rates: unknown flag <flag>` / `eval:pass-rates: unknown case <id> (not an E2E, judge or paid test file id)`
+
+**Meaning.** The flag or case id is not recognized. The command exits 2 before
+fetching anything.
+
+**Fix.** `bun run eval:pass-rates --help` lists the flags. `--case` takes a
+registry id from `test/helpers/touchfiles-data.ts` or a paid test file path.
+
+<a id="failure-cause-newer"></a>
+### `unknown failure_cause "<x>" (written by a newer gstack; update this checkout to read it)`
+
+**Meaning.** A trial record names a failure cause this checkout does not know.
+A newer gstack wrote it.
+
+**Fix.** `git pull` (or rebase your branch onto `main`), then rerun the command.
+
+<a id="paid-case-several-owners"></a>
+### `--case <id>: registered by <file>, <file>; it needs exactly one`
+
+**Meaning.** More than one paid test file registers the case, so
+`test-paid-shards.ts --case` cannot pick one file.
+
+**Fix.** Run the red shard's file directly; the report's `after a repair:` line
+prints it: `EVALS=1 EVALS_TIER=<tier> bun test <file>`.
+
+<a id="evidence-too-large"></a>
+### `evidence: <artifact> too large to fetch (<N> MB)`
+
+**Meaning.** The slice artifact holding this red's transcript is over 64 MB, so
+`eval:pass-rates --run` does not download it.
+
+**Fix.** Download it from the run page, or
+`gh api repos/<owner>/<repo>/actions/artifacts/<artifact id>/zip > slice.zip`.
+
+<a id="headroom-alarm"></a>
+### `[headroom] <case> session <key>: max <s> of <s> (<pct>) over <n> sample(s), above the 85% cap. Cut work in the skill or fixture; budgets are never raised ...`
+
+**Meaning.** `eval:pass-rates --gate` (the weekly report) found a case whose
+slowest session used more than 85% of the timeout it armed. It is one timeout
+away from a red.
+
+**Fix.** Cut work in the skill or fixture. Budgets are never raised. Check the
+case with `bun run eval:pass-rates --headroom --case <id>`.
+
+<a id="cost-unknown"></a>
+### `cost unknown (no billing captured for any of <N> trial(s))` / `cost $<x> known + <N> of <M> trial(s) cost unknown`
+
+**Meaning.** PTY and Codex sessions record no billing, so their cost is
+unknown. Only the known sum is shown.
+
+**Fix.** None needed; this is informational.
+
+<a id="cause-provider-stall"></a>
+### `· cause provider_stall: no stream event for <N>s ...`
+
+**Meaning.** The session streamed partial messages, then received no event of
+any kind for at least 120 seconds while a model request was in flight and no
+tool, permission prompt, hook or subagent was outstanding. Under EVAL_POLICY v1
+it is still a failed trial.
+
+**Fix.** Inspect it with `bun run eval:pass-rates --run <run id> --case <id>`.
+A paid rerun happens only after a repair.
+
+<a id="overlay-wrong-answer"></a>
+### Overlay record with `taskCorrect: false` and `answerError` (contract v4)
+
+**Meaning.** The trial completed with a wrong answer. Under overlay contract v4
+that is a valid measurement in the comparison; only an overlay-ON wrong answer
+fails the case.
+
+**Fix.** Read `answerError` in the trial JSON. No rerun is needed.
+
+<a id="detector-corpora-stale"></a>
+### `[detector-corpora] <N> stale entries (refresh from a current census when one fails)`
+
+**Meaning.** Some replay-corpus entries came from an older input series of
+their case. This is informational; the corpus still replays them.
+
+**Fix.** When that case goes red in a census, add the new capture to its corpus
+and check it with `bun test test/detector-corpus-<case>.test.ts`.
+
+<a id="auq-substance-panel"></a>
+### `recommendation substance mean <x> < 4 over samples [<a>,<b>,<c>] (boilerplate/weak)`
+
+**Meaning.** The auq-matrix case scores each captured question's recommendation
+with a 3-sample judge panel; their mean was below 4.
+
+**Fix.** Read the logged samples and the captured question. A fix goes in the
+skill text, followed by one diagnostic run of auq-matrix.
+
+---
+
 ## Push guard (redaction)
 
 <a id="redact-postgres-default-pair"></a>
@@ -685,78 +796,3 @@ Bypass once: `GSTACK_REDACT_PREPUSH=skip git push`.
 
 **Fix.** Write it as `version: 1.2.3.4`, `"version": "..."` or `v1.2.3.4`.
 MEDIUM findings do not block pushes.
-
----
-
-## Evals and census reports (contributors)
-
-<a id="pass-rates-unknown-flag"></a>
-### `eval:pass-rates: unknown flag --x` / `unknown case <id>`
-
-**Meaning.** The flag or case id is not recognized; it exits 2 before fetching anything.
-
-**Fix.** `bun run eval:pass-rates --help`; use a registry case id or a paid test file path.
-
-<a id="unknown-failure-cause"></a>
-### `unknown failure_cause "<x>" (written by a newer gstack; update this checkout to read it)`
-
-**Fix.** `git pull` (or rebase your branch) and rerun.
-
-<a id="case-registered-by-several"></a>
-### `--case <id>: registered by a, b; it needs exactly one`
-
-**Fix.** Run the red shard's file: `EVALS=1 EVALS_TIER=<tier> bun test <file>`
-(the report's "after a repair:" line prints it).
-
-<a id="evidence-too-large"></a>
-### `evidence: <artifact> too large to fetch (N MB)`
-
-**Fix.** Download it from the run page, or
-`gh api repos/<owner>/<repo>/actions/artifacts/<id>/zip > slice.zip`.
-
-<a id="headroom-alarm"></a>
-### `[headroom] <case> session <key>: max Xs of Ys (Z%) ... above the 85% cap`
-
-**Meaning.** The case's slowest session used more than 85% of the timeout it armed.
-
-**Fix.** Cut work in the skill or fixture. Budgets are never raised.
-
-<a id="cost-unknown"></a>
-### `cost unknown (no billing captured for any of N trial(s))` / `... N of M trial(s) cost unknown`
-
-**Meaning.** PTY and Codex harnesses record no billing, so only the known sum is
-shown. Informational.
-
-<a id="provider-stall"></a>
-### Red line `· cause provider_stall: no stream event for Ns ...`
-
-**Meaning.** The model request went silent for at least 120 s with no tool,
-permission prompt, hook or subagent outstanding. Under EVAL_POLICY v1 this is
-still a failure.
-
-**Fix.** Inspect it with `bun run eval:pass-rates --run <id> --case <id>`. A
-paid rerun only after a repair.
-
-<a id="overlay-contract-v4"></a>
-### `overlay ... contract-v4 ... taskCorrect: false` with `answerError` set
-
-**Meaning.** The trial completed with a wrong answer; that is a valid
-measurement in the comparison. Only an overlay-on wrong answer fails the case.
-
-**Fix.** Read `answerError` in the trial JSON. No rerun needed.
-
-<a id="detector-corpora-stale"></a>
-### `[detector-corpora] N stale entries (refresh from a current census when one fails)`
-
-**Meaning.** Corpus entries came from an older input series of their case. Informational.
-
-**Fix.** When that case goes red in a census, add the new capture and check it
-with `bun test test/detector-corpus-<case>.test.ts`.
-
-<a id="auq-substance-mean"></a>
-### `recommendation substance mean X < 4 over samples [a,b,c]` (auq-matrix)
-
-**Meaning.** The 3-sample judge panel's mean was below the threshold.
-
-**Fix.** Read the logged samples and the captured question; fix the skill
-text, then run one diagnostic.
