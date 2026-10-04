@@ -28,6 +28,7 @@ The first three rows are the ones users feel. The last three are why the next ce
 - **Bun floor and safe auto-update.** Setup refuses Bun older than 1.3.3 and warns below 1.4.0, the tested version. Team-mode auto-update and `/gstack-upgrade` read the incoming release's Bun requirement first and hold the update, leaving your install untouched, when your Bun is too old. The first update run by an older auto-updater cannot do this check.
 - **make-pdf on Codex** and the other env-var hosts finds its binary in every block, and `MAKE_PDF_BIN` works there too. Install paths with spaces work.
 - **/review in Codex's sandbox.** The working-tree fingerprint writes its git objects to a private temp directory, and a base that cannot be fetched is reported as stale instead of ending the review.
+- **/freeze, /guard, /unfreeze and /investigate's edit boundary work on Codex** and the other env-var hosts. Their scripts used a path a global install does not have, and setup never installed `freeze/bin`; both are fixed, and /benchmark-models, /retro and /diagram find their helpers the same way.
 - **`browse stop` reaps a surviving headless Chromium** again on Playwright 1.62, only for browsers gstack launched.
 - **/ship's documentation gate** records post-audit file hashes with its helper instead of having the model retype them.
 - **/plan-ceo-review** shows its mode line (`Mode: ...` or `Auto-decided review mode → ...`) word for word right after the mode is chosen.
@@ -42,12 +43,15 @@ The first three rows are the ones users feel. The last three are why the next ce
 - **Browser Quick QA has a 3-minute budget** (was 30 seconds, too short for a homepage and five pages with their checkpoints).
 - **/review's plan-completion question is not asked in spawned or non-interactive runs;** they report REQUIREMENTS MISSING and continue without recording anything.
 - **`live-model-check.ts` ignores `GSTACK_DESIGN_MODEL`** and always checks the default models.
+- **A census dispatched on a branch no longer comments on or closes main's tracking issue** (periodic and marathon). Its report goes to the run's step summary and a `census-report` (or `marathon-report`) artifact; main posts as before.
 - For contributors: `bun run eval:pass-rates` rejects unknown flags and case ids (exit 2) and `--gate` also fails when a session ran above 85% of its armed budget; every `claude -p` eval session streams partial messages (only a liveness summary is kept) and writes `session-ledger.jsonl`; overlay comparisons count an overlay-off wrong answer as a measured result (contract v4); the AUQ matrix scores recommendation substance with a 3-sample judge panel.
 
 ### Itemized changes
 
 #### Added
 - `bun run eval:pass-rates --headroom` (slowest armed session per case against its budget), `--reds` (verdict reds by class and cause, with the all-green probability and its interval) and `--run <id>` (one census's reds, downloading only the slices they name); `--help` works offline.
+- The weekly tracking issue shows every pass-rate alarm line (it showed only the header), the red ledger by class and cause, session headroom, the all-green probability, and a link to the new guide `docs/evals/census-red.md` (from a red census line to a diagnosis with free commands). The marathon issue closes itself on the next green main run.
+- Periodic cases `codex-multiblock-live` (installs gstack for Codex into a fresh `CODEX_HOME` and runs a later /learn block that must find gstack on its own) and `design-model-smoke` (the design tool's default OpenAI models; reported as skipped without `OPENAI_API_KEY`, never as a pass).
 - `docs/troubleshooting.md` sections for the Bun floor, held updates, stale /review bases, fingerprint temp-dir errors, the image model override, an unrecorded Chromium PID, and census report lines.
 
 #### Fixed

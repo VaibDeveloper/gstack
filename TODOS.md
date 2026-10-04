@@ -68,6 +68,17 @@ Deferred from the approved reliability follow-ups plan (docs/designs/RELIABILITY
 - **Fresh /ship marathon case** — the marathon lane runs a fresh
   /plan-eng-review; a fresh /ship journey case is new harness work.
   **Effort:** M. **Priority:** P3.
+- **Refresh the E5/E6 duration seeds** — `codex-multiblock-live` (180 s) and
+  `design-model-smoke` (90 s) are estimates in `scripts/paid-test-durations.json`;
+  refresh them with `--write-durations` from their first census, and close
+  "Periodic paid smoke for the default design model pairing" once it has run
+  there. **Effort:** S. **Priority:** P3.
+- **Env-var hosts: optional runtime files outside the runtime root** — the
+  Chrome extension lookup in /open-gstack-browser and /connect-chrome, and the
+  prose pointers to `$GSTACK_ROOT/docs/...` and `$GSTACK_ROOT/scripts/...`
+  (question-split guide, jargon list, question registry) name files the
+  Codex/Factory runtime roots do not link. Executed fences are covered by
+  `test/env-host-runtime-assets.test.ts`; these reads are not. **Effort:** S. **Priority:** P3.
 - **Product A/B against the stock host agent** — compare gstack end to end
   with the stock Claude Code/Codex agent on product outcomes (the overlay
   harness covers model-level deltas only). Its own project. **Effort:** L. **Priority:** P3.
