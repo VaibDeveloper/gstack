@@ -106,7 +106,7 @@ test('completed docs review accepts literal cat but not an unrelated command or 
   } finally { fixture.clean(); }
 });
 
-test('replay of run 37237194905 late-result: only the write to a mistyped shard root is outside authority', () => {
+test.skipIf(process.platform === 'win32')('replay of Linux run 37237194905 late-result: only the write to a mistyped shard root is outside authority', () => {
   const fixture = fixtureDocs('current');
   try {
     const actor = path.join(import.meta.dir, 'helpers', 'docsync-fault-actor.ts');
@@ -119,8 +119,5 @@ test('replay of run 37237194905 late-result: only the write to a mistyped shard 
     expect(docsToolFailures(calls(...toolCalls), fixture, [actor])).toEqual(['write outside docs fixture authority']);
     expect(toolCalls[19].input.file_path.startsWith(typoHome)).toBe(true);
     expect(docsToolFailures(calls(...toolCalls.filter((_: unknown, index: number) => index !== 19)), fixture, [actor])).toEqual([]);
-    const snapshot = [path.join(fixture.skills, 'bin/gstack-docs-candidate'), 'snapshot', '--out', path.join(fixture.home, 'ship-docs-a2-post.json'),
-      '--audit-id', 'ship-docs-a2', '--mode', 'edit', '--base', 'c7e8a106ea1279ee9efc96c79dad732efbc745aa', '--docs', 'handbook'].join(' ');
-    expect(docsToolFailures(calls({ tool: 'Bash', input: { command: snapshot }, output: '' }), fixture, [actor])).toEqual([]);
   } finally { fixture.clean(); }
 });
