@@ -75,3 +75,14 @@ describe('sanitizeFixedFenceLine (lines a workflow wraps in a fixed fence)', () 
     expect(sanitizeFixedFenceLine('z'.repeat(10 * 1024))).toHaveLength(PUBLISHED_TEXT_MAX);
   });
 });
+
+describe('id positions survive redaction', () => {
+  test('the eval report fetch command keeps its run id (PR #3033 comment)', () => {
+    const line = '✗ context-recovery-artifacts  rule  FAIL  assertion — expect(received).toBeGreaterThanOrEqual(expected)  · cause assertion  Expected: >= 1 · Received: 0  [slice 10, attempt 1]  evidence: paid-slice-10-a1/shards/skill-e2e-session-intelligence (fetch: bun run eval:pass-rates --run 37235771700 --case context-recovery-artifacts)  after a repair: bun run scripts/test-paid-shards.ts --tier gate --case context-recovery-artifacts';
+    expect(sanitizeFixedFenceLine(line)).toBe(line);
+    expect(publishedFence([line])[1]).toBe(line);
+  });
+  test('a phone number in published text is still redacted', () => {
+    expect(sanitizeFixedFenceLine('call +1 415 555 0123 now')).not.toContain('415 555 0123');
+  });
+});
