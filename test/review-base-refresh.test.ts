@@ -14,13 +14,13 @@ function git(cwd: string, ...args: string[]) {
   return r.stdout.trim();
 }
 
-/** Step 1's base-refresh block from the /review template, with `<base>` bound. */
+/** Step 1 item 3's commands from the /review template, run in order, with `<base>` bound. */
 function stepOneBlock(base: string): string {
   const body = fs.readFileSync(path.join(ROOT, 'review/SKILL.md.tmpl'), 'utf8');
-  const step = body.slice(body.indexOf('## Step 1: Check branch'), body.indexOf('{{SCOPE_DRIFT}}'));
-  const block = /```bash\n([\s\S]*?)\n```/.exec(step);
-  if (!block) throw new Error('Step 1 has no bash block');
-  return block[1]!.replaceAll('<base>', base);
+  const item = body.slice(body.indexOf('3. Run `git fetch origin <base>'), body.indexOf('{{SCOPE_DRIFT}}'));
+  const commands = [...item.matchAll(/`(git fetch [^`]+|DIFF_BASE=[^`]+)`/g)].map(m => m[1]!);
+  if (commands.length !== 2) throw new Error('Step 1 item 3 commands moved');
+  return commands.join('\n').replaceAll('<base>', base);
 }
 
 function clone() {
@@ -50,7 +50,7 @@ describe('/review Step 1 base refresh', () => {
     git(repo, 'remote', 'set-url', 'origin', path.join(repo, 'no-such-remote'));
     const result = run(repo, stepOneBlock('main'));
     const rev = git(repo, 'rev-parse', '--short', 'origin/main');
-    expect(result.stdout).toContain(`BASE_REFRESH: stale (fetch failed; local origin/main at ${rev})`);
+    expect(result.stdout).toContain(`BASE_REFRESH: stale ${rev}`);
     expect(result.stdout).toMatch(/app\.ts \| 2 \+-/);
   });
 
@@ -63,7 +63,7 @@ describe('/review Step 1 base refresh', () => {
 
   test('the review reports stale coverage instead of stopping', () => {
     const body = fs.readFileSync(path.join(ROOT, 'review/SKILL.md.tmpl'), 'utf8').replace(/\s+/g, ' ');
-    expect(body).toContain('A failed fetch (for example a read-only `.git` in a sandbox) is not an empty diff: continue, and state `Base coverage: stale — reviewed against origin/<base> at <revision>` in the review output.');
+    expect(body).toContain('`stale` is not an empty diff: continue; report `Base coverage: stale at <revision>`.');
     expect(body).not.toContain('git fetch origin <base> --quiet && DIFF_BASE=');
   });
 });
