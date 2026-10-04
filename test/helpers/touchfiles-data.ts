@@ -92,7 +92,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // gate + token→tip map live in bin/gstack-skill-start's emission layer).
 
   // SKILL.md setup + preamble (depend on ROOT SKILL.md + gen-skill-docs)
-  'skillmd-setup-discovery':  [ 'setup', 'bin/gstack-relink', 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
+  'skillmd-setup-discovery':  [ 'setup', 'bin/gstack-bun-version.sh', 'bin/gstack-relink', 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
   'skillmd-no-local-binary':  [ 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
   'skillmd-outside-git':      [ 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
 
@@ -399,7 +399,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // devex, office-hours + future PR2 carves). One file iterating CARVE_GUARDS;
   // the selector sets GSTACK_CARVE_SKILL=<name> to scope cost to the changed
   // skill (D-CODEX A). Touching the registry/helper or sections.ts runs all.
-  'carve-section-loading':       [ 'setup','bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-review-log', 'bin/gstack-review-read', 'lib/review-evidence.ts',
+  'carve-section-loading':       [ 'setup', 'bin/gstack-bun-version.sh','bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-review-log', 'bin/gstack-review-read', 'lib/review-evidence.ts',
     'bin/gstack-slug', 'bin/gstack-remote-identity.sh', 'bin/gstack-wtree', 'bin/gstack-config', 'bin/gstack-brain-enqueue',
      'test/fixtures/autoplan-amend-input-77.json',
      'test/fixtures/autoplan-phase-handoff-6714.json','scripts/resolvers/learnings.ts', 
@@ -683,7 +683,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'codex-review': [ 'test/helpers/outside-voice-evidence.ts', 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'codex/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'],
 
   // Codex E2E (tests skills via Codex CLI + worktree)
-  'codex-discover-skill':  [ 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'setup','codex/**', 'scripts/gen-skill-docs.ts', 'test/helpers/codex-session-runner.ts', 'lib/worktree.ts', 'test/codex-e2e.test.ts',
+  'codex-discover-skill':  [ 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'setup', 'bin/gstack-bun-version.sh','codex/**', 'scripts/gen-skill-docs.ts', 'test/helpers/codex-session-runner.ts', 'lib/worktree.ts', 'test/codex-e2e.test.ts',
     'test/helpers/codex-eval.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'
   ],
   'codex-review-findings': [ 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts','review/**', 'scripts/gen-skill-docs.ts', 'codex/**', 'test/helpers/codex-session-runner.ts', 'lib/worktree.ts', 'test/codex-e2e.test.ts',
@@ -832,7 +832,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'diagram-authoring-quality':  ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'diagram/**', 'lib/diagram-render/**', 'lib/aside-render.ts', 'bin/gstack-render.ts', 'test/helpers/aside-available.ts', 'browse/src/**', 'test/helpers/llm-judge.ts', 'test/skill-e2e-diagram.test.ts'],
 
   // gstack-upgrade
-  'gstack-upgrade-happy-path': [ 'test/helpers/outside-voice-evidence.ts', 'setup', 'bin/gstack-relink', 'bin/gstack-session-update', 'gstack-upgrade/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
+  'gstack-upgrade-happy-path': [ 'test/helpers/outside-voice-evidence.ts', 'setup', 'bin/gstack-bun-version.sh', 'bin/gstack-relink', 'bin/gstack-session-update', 'gstack-upgrade/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
 
   // Deploy skills
   'land-and-deploy-workflow':      [ 'bin/gstack-version-bump', 'land-and-deploy/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-deploy.test.ts'],
@@ -1538,10 +1538,13 @@ export const GLOBAL_TOUCHFILES = [
   'scripts/lib/paid-cases.ts',       // Case/trial shard keys, plan and report moved out of test-paid-shards.ts
   'scripts/lib/paid-plan.ts',
   'scripts/lib/paid-report.ts',
+  'scripts/lib/published-text.ts',   // Sanitizes every model-written string paid-report publishes
   'scripts/test-pr-profile.ts',
   'test/helpers/eval-budgets.ts',
 
   'test/helpers/session-runner.ts',  // All E2E tests use this runner
+  'test/helpers/session-ledger.ts',  // Every runner appends its session facts here
+  'test/helpers/auq-substance-panel.ts', // auq-matrix's substance panel; the case has no map key
   'test/helpers/session-drain-policy.ts',
   'test/helpers/hermetic-env.ts',    // Changes every E2E child's environment
   'test/helpers/eval-store.ts',      // All E2E tests store results here
@@ -1566,6 +1569,13 @@ export const GLOBAL_TOUCHFILES = [
  *              needs a BEHAVIOR_WHY entry naming the tolerated deviation.
  *   judge    - an LLM-judge score of a static input, sampled as a panel.
  * Reclassification is a reviewed diff, never a runtime switch.
+ *
+ * auq-matrix-<skill> (no map key, template-literal ids) stays `rule`: one
+ * capture per skill, one trial. C4 (approved 2026-10-04): recommendation
+ * substance is scored by a 3-sample judgePanel mean on the single capture,
+ * threshold 4 unchanged; was a single judge sample and red in 6 of 24
+ * censuses (37182865432 in the wave set); diagnostic run on wave/d-followups:
+ * 6/6 skills, panels [5,5,5].
  */
 export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'ship-skipped-queued-finding': 'rule',
