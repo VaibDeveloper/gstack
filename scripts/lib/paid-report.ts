@@ -36,7 +36,7 @@ import {
   trialCostKnown, trialFailureFields, trialSessions, type TrialFailureDetail,
 } from '../../test/helpers/eval-store';
 import { readSessionLedger, type SessionLedgerRow } from '../../test/helpers/session-ledger';
-import { publishedFence, sanitizePublishedText } from './published-text';
+import { publishedFence, sanitizeFixedFenceLine } from './published-text';
 import { E2E_KINDS } from '../../test/helpers/touchfiles-data';
 import { manualReviewProblem } from '../../test/helpers/cookie-workflow-manual-review';
 import { preflightAnthropicApi } from '../../test/helpers/anthropic-preflight';
@@ -772,7 +772,8 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
     marks: p.marks, split: p.split, quarantined: p.quarantined, failsLane: p.failsLane, redClass: p.redClass, reason: p.reason,
     trials: p.trials.map(t => ({ trial: t.trial, outcome: t.outcome, ...(t.failure_class ? { failure_class: t.failure_class } : {}),
       ...(t.exit_reason ? { exit_reason: t.exit_reason } : {}), ...(t.error ? { error: t.error } : {}) })) })),
-  failures: failureLines.map(line => sanitizePublishedText(line)) }, null, 2) + '\n');
+  // evals.yml wraps these in a fixed fence for the PR comment.
+  failures: failureLines.map(line => sanitizeFixedFenceLine(line)) }, null, 2) + '\n');
   if (verdict.problems.length) {
     console.error(`[test:paid] report: ${verdict.problems.length} problem(s):`);
     for (const problem of verdict.problems) console.error(`  ✗ ${problem}`);

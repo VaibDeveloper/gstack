@@ -143,7 +143,7 @@ describe('triageRun (stub fetcher, no network)', () => {
     expect(downloaded).toEqual(['paid-plan', 'paid-slice-5-a1']);
     expect(lines[0]).toContain('run 42 (b @ abcdef123, t): 2 verdict red(s)');
     expect(lines).toContain('✗ qa-only/SKILL.md workflow  periodic/full census  FAIL  (history: 1/2 verdicts green)');
-    expect(lines.join('\n')).toContain('t1: assertion / cause assertion — expect(received).toBeGreaterThanOrEqual(expected)  clarity 3.67 &lt; 4 (3 samples) "Clarity suffers from density."');
+    expect(lines.join('\n')).toContain('t1: assertion / cause assertion — expect(received).toBeGreaterThanOrEqual(expected)  clarity 3.67 < 4 (3 samples) "Clarity suffers from density."');
     expect(lines.join('\n')).toContain(`evidence: ${path.join(cacheDir, 'paid-slice-5-a1', 'shards', 'skill-llm-eval')}`);
     expect(lines).toContain('    evidence: paid-slice-7-a1 too large to fetch (70 MB)');
   });

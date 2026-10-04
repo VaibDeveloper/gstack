@@ -4,7 +4,7 @@
  * break out of its fence, inject HTML or images, leak a credential, or flood.
  */
 import { describe, expect, test } from 'bun:test';
-import { publishedFence, sanitizePublishedText, PUBLISHED_TEXT_MAX } from '../scripts/lib/published-text';
+import { publishedFence, sanitizeFixedFenceLine, sanitizePublishedText, PUBLISHED_TEXT_MAX } from '../scripts/lib/published-text';
 
 // Built at runtime so this file never contains a credential-shaped literal.
 const GHP = ['ghp', '_', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'].join('');
@@ -37,6 +37,9 @@ describe('sanitizePublishedText (inline)', () => {
     // eslint-disable-next-line no-control-regex
     expect(out[5]).not.toMatch(/[\u0000-\u001f\u007f\u202e]/);
   });
+  test('backticks cannot open a code span or close an enclosing fence', () => {
+    expect(out[1]).not.toContain('`');
+  });
   test('length is capped', () => {
     expect(sanitizePublishedText('x'.repeat(10 * 1024))).toHaveLength(PUBLISHED_TEXT_MAX);
   });
@@ -60,5 +63,15 @@ describe('publishedFence (blocks)', () => {
     expect(body).not.toContain('\u202e');
     expect(block.at(-2)).toHaveLength(PUBLISHED_TEXT_MAX);
     expect(body).toContain('</details>');
+  });
+});
+
+describe('sanitizeFixedFenceLine (lines a workflow wraps in a fixed fence)', () => {
+  test('no backtick survives, and the rest is cleaned like every published line', () => {
+    const out = ADVERSARIAL.map(line => sanitizeFixedFenceLine(line)).join('\n');
+    expect(out).not.toContain('`');
+    expect(out).not.toMatch(/@[A-Za-z]/);
+    expect(out).not.toContain(GHP);
+    expect(sanitizeFixedFenceLine('z'.repeat(10 * 1024))).toHaveLength(PUBLISHED_TEXT_MAX);
   });
 });

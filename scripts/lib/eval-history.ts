@@ -22,7 +22,7 @@ import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { panelVerdict, type TrialOutcomeRecord } from '../../test/helpers/eval-store';
 import { HEADROOM_FAIL, HEADROOM_WARN } from '../../test/helpers/eval-budgets';
-import { sanitizePublishedText } from './published-text';
+import { sanitizeFixedFenceLine } from './published-text';
 import type { HistoryFetcher, WeeklyRun } from '../eval-flake-rank';
 import { CASE_SHARDED_FILES, trialShardKey } from './paid-cases';
 import { shardSlug } from '../test-paid-shards';
@@ -204,7 +204,7 @@ export function formatRedLedger(ledger: RedLedger, opts: { top?: number } = {}):
     for (const red of c.reds) {
       const failed = red.trials.filter(t => t.outcome === 'failed');
       lines.push(`    ✗ ${red.case} ${red.status} ${failed.map(t => `t${t.trial} ${t.failure_class ?? 'assertion'}/${t.failure_cause ?? 'unrecorded'}`
-        + `${t.error ? ` — ${sanitizePublishedText(t.error, 160)}` : ''}`).join('; ')}`);
+        + `${t.error ? ` — ${sanitizeFixedFenceLine(t.error, 160)}` : ''}`).join('; ')}`);
     }
   }
   const p = ledger.pooled;
@@ -275,7 +275,7 @@ export function triageRun(opts: { repo: string; run: WeeklyRun; records: readonl
       const d = t.failure_detail;
       const detail = !d ? '' : 'judge' in d ? `  ${d.judge.map(j => `${j.dimension} ${j.mean} < ${j.threshold} (${j.samples} samples)${j.rationale ? ` "${j.rationale}"` : ''}`).join('; ')}`
         : `  Expected: ${d.expected} · Received: ${d.received}`;
-      lines.push(sanitizePublishedText(`    t${t.trial}: ${t.failure_class ?? 'assertion'} / cause ${t.failure_cause ?? 'unrecorded'}`
+      lines.push(sanitizeFixedFenceLine(`    t${t.trial}: ${t.failure_class ?? 'assertion'} / cause ${t.failure_cause ?? 'unrecorded'}`
         + `${t.failure_cause_evidence ? `: ${t.failure_cause_evidence}` : ''}${t.error ? ` — ${t.error}` : ''}${detail}`, 2000));
       const plan = planFor(red.lane);
       const slice = plan.files.get(recordShardKey(t));

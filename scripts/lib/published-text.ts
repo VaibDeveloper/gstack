@@ -21,10 +21,15 @@ function clean(text: string): string {
   return redacted.replace(/@(?=[A-Za-z0-9_-])/g, '@\u200b');
 }
 
-/** One inline line: cleaned, HTML and Markdown link brackets escaped, capped. */
+/** One inline line: cleaned, HTML, Markdown link brackets and backticks neutralized, capped. */
 export function sanitizePublishedText(text: string, max = PUBLISHED_TEXT_MAX): string {
   return cap(clean(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\[/g, '&#91;').replace(/\]/g, '&#93;'), max);
+    .replace(/\[/g, '&#91;').replace(/\]/g, '&#93;').replace(/`/g, "'"), max);
+}
+
+/** One line for a consumer that wraps it in a fixed three-backtick fence (the PR comment): backticks become quotes. */
+export function sanitizeFixedFenceLine(text: string, max = PUBLISHED_TEXT_MAX): string {
+  return cap(clean(text).replace(/`/g, "'"), max);
 }
 
 /** Cleaned, capped lines inside a fence longer than the longest backtick run they contain. */
