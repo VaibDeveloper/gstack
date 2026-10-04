@@ -33,12 +33,12 @@ If \`MAKE_PDF_READY\` is printed: \`$P\` is the binary path for the rest of
 the skill. Use \`$P\` (not an explicit path) so the skill body stays portable.
 
 Core commands:
-- \`$P generate <input.md> [output.pdf]\` — render markdown to PDF (80% use case)
-- \`$P generate --cover --toc essay.md out.pdf\` — full publication layout
-- \`$P generate --watermark DRAFT memo.md draft.pdf\` — diagonal DRAFT watermark
-- \`$P preview <input.md>\` — render HTML and open in browser (fast iteration)
-- \`$P setup\` — verify the browser (Aside, or gstack's own headless fallback) + pdftotext and run a smoke test
-- \`$P --help\` — full flag reference
+- \`"$P" generate <input.md> [output.pdf]\` — render markdown to PDF (80% use case)
+- \`"$P" generate --cover --toc essay.md out.pdf\` — full publication layout
+- \`"$P" generate --watermark DRAFT memo.md draft.pdf\` — diagonal DRAFT watermark
+- \`"$P" preview <input.md>\` — render HTML and open in browser (fast iteration)
+- \`"$P" setup\` — verify the browser (Aside, or gstack's own headless fallback) + pdftotext and run a smoke test
+- \`"$P" --help\` — full flag reference
 
 Output contract:
 - \`stdout\`: ONLY the output path on success. One line.
