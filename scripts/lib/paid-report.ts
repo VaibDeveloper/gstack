@@ -33,9 +33,10 @@ import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
   type EvalCaseKind, type PanelShape, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
-  trialFailureFields, trialSessions,
+  trialFailureFields, trialSessions, type TrialFailureDetail,
 } from '../../test/helpers/eval-store';
 import { readSessionLedger, type SessionLedgerRow } from '../../test/helpers/session-ledger';
+import { publishedFence, sanitizePublishedText } from './published-text';
 import { E2E_KINDS } from '../../test/helpers/touchfiles-data';
 import { manualReviewProblem } from '../../test/helpers/cookie-workflow-manual-review';
 import { preflightAnthropicApi } from '../../test/helpers/anthropic-preflight';
@@ -57,7 +58,7 @@ export { PAID_TEST_GLOBS, isPaidTestFile };
 export { PERIODIC_CI_EXCLUDE };
 
 type E2EShardReuse = NonNullable<ReturnType<typeof prepareE2EShardReuse>>;
-import { CASE_TEST_NAMES, type CaseTrialPlan, caseTrialPlan, shardCaseId, shardFile, trialShardKey } from './paid-cases';
+import { CASE_TEST_NAMES, type CaseTrialPlan, caseTestNamePattern, caseTrialPlan, shardCaseId, shardFile, trialShardKey } from './paid-cases';
 import { type ManifestEntry, PAID_TEST_DURATIONS_FILE, type PaidRunManifest, type SliceResult, collectorOutcomeCounts, formatProfileCoverage, loadPaidTestDurations, mergePaidTestDurations, parseRunManifest, trialPanelKey, verifySliceResults, writePaidTestDurations } from './paid-plan';
 import { DEFAULT_JOBS, type PaidCaseSelection, type PaidTier, ROOT, type RunShardsOptions, type ShardTrialRecord, collectPaidTestFiles, fileCaseRegistration, isAllSkippedPass, runPaidShards, shardSlug, paidSelectionEnv } from '../test-paid-shards';
 
@@ -232,6 +233,12 @@ function caseSessions(rows: SessionLedgerRow[], id: string, onlyCase: boolean): 
   return rows.filter(row => row.case === id || (!row.case && (onlyCase || row.test_name === id || row.test_name === CASE_TEST_NAMES[id])));
 }
 
+/** The artifact holding a slice's shards: the downloaded directory's own name when it is one. */
+export function sliceArtifactName(root: string, slice: number, attempt: number): string {
+  const name = path.basename(root);
+  return /^(?:paid-slice|gate-census)-\d+-a\d+$/.test(name) ? name : `slice ${slice} attempt ${attempt}`;
+}
+
 export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact[], recordsByShard: Map<string, any[]>,
   base: Record<string, unknown>, cliVersion?: string): JUnitCensus {
   const census: JUnitCensus = { ruleCases: [], history: [], failedShards: new Set(), skipped: [], deselected: new Map(), shardSkipReasons: new Map(), unattributed: [] };
@@ -262,7 +269,6 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
         const failureClass: TrialFailureClass | undefined = !failed ? undefined
           : failed.failureType === 'TimeoutError' ? 'timeout' : failedRecord ? failureClassOf(failedRecord) : 'assertion';
         const error = sanitizeTrialError(failedRecord?.error ?? failed?.message);
-        const rerun = Object.hasOwn(E2E_TIERS, id) ? rerunCommand(manifest.tier, id, 1) : `EVALS=1 EVALS_TIER=${manifest.tier} bun test ${shardFile(key)}`;
         const sessions = caseSessions(ledger, id, byCase.size === 1);
         const diagnosis = failed && failureClass ? trialFailureFields({ failure_class: failureClass, exit_reason: failedRecord?.exit_reason,
           error: failedRecord?.error ?? failed.message, sessions, record: failedRecord }) : undefined;
@@ -272,7 +278,10 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
           census.skipped.push(`◌ ${id}  ${key} (${cases.map(tc => tc.name).join('; ')}): ${RUNTIME_SKIP_REASON}`);
         }
         census.ruleCases.push({ id, kind, outcome: caseOutcome,
-          ...(failed ? { line: `✗ ${id}  ${kind}  FAIL  ${failureClass}${failedRecord?.exit_reason === 'timeout' && failedRecord?.timeout_at_turn !== undefined ? ` at turn ${failedRecord.timeout_at_turn}` : ''}${error ? ` — ${error}` : ''}  [slice ${result.sliceIndex}, attempt ${result.attempt ?? 1}]  rerun: ${rerun}` } : {}) });
+          ...(failed ? { line: `✗ ${id}  ${kind}  FAIL  ${failureClass}${failedRecord?.exit_reason === 'timeout' && failedRecord?.timeout_at_turn !== undefined ? ` at turn ${failedRecord.timeout_at_turn}` : ''}${error ? ` — ${error}` : ''}`
+            + `${diagnosisText(diagnosis, error)}  [slice ${result.sliceIndex}, attempt ${result.attempt ?? 1}]`
+            + `${evidencePointer(sliceArtifactName(root, result.sliceIndex, result.attempt ?? 1), key, typeof base.run_id === 'string' ? base.run_id : undefined, id)}`
+            + `  after a repair: ${afterRepairCommand(manifest.tier, id, shardFile(key))}` } : {}) });
         census.history.push({ ...base, case: id, file: shardFile(key), kind, trial: 1, panel: { n: 1, k: 1 }, outcome: caseOutcome,
           ...(failureClass ? { failure_class: failureClass } : {}), ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
           ...(error && failed ? { error } : {}), ...diagnosis, ...trialSessions(sessions), duration_ms: cases.reduce((sum, tc) => sum + tc.timeMs, 0),
@@ -339,7 +348,9 @@ export function panelReports(manifest: PaidRunManifest, results: SliceResult[], 
       return [{ trial: t.trial, outcome: t.outcome, attempt, ...(t.failure_class ? { failure_class: t.failure_class } : {}),
         ...(t.exit_reason ? { exit_reason: t.exit_reason } : {}), ...(t.error ? { error: t.error } : {}),
         ...(got.outcome.reused ? { execution: 'reused' as const } : {}),
-        ...(t.timeout_at_turn !== undefined ? { timeout_at_turn: t.timeout_at_turn } : {}) }];
+        ...(t.timeout_at_turn !== undefined ? { timeout_at_turn: t.timeout_at_turn } : {}),
+        ...(t.failure_cause ? { failure_cause: t.failure_cause } : {}), ...(t.failure_cause_evidence ? { failure_cause_evidence: t.failure_cause_evidence } : {}),
+        ...(t.failure_detail ? { failure_detail: t.failure_detail } : {}) }];
     });
     const verdict = panelVerdict({ case: shardCaseId(key)!, kind: plan.kind, panel: plan.panel, trials, quarantined: plan.quarantined });
     // Reuse is whole-panel only: every trial reused from one run, or none.
@@ -352,29 +363,62 @@ export function panelReports(manifest: PaidRunManifest, results: SliceResult[], 
   });
 }
 
+type TrialDiagnosis = { failure_cause?: string; failure_cause_evidence?: string; failure_detail?: TrialFailureDetail };
+
+/** Cause (when it says more than the class), its evidence and the failure detail, appended to a red line. */
+function diagnosisText(d: TrialDiagnosis | undefined, error?: string): string {
+  if (!d?.failure_cause) return '';
+  const evidence = d.failure_cause_evidence && d.failure_cause_evidence !== error ? `: ${d.failure_cause_evidence}` : '';
+  const detail = !d.failure_detail ? ''
+    : 'judge' in d.failure_detail ? `  ${d.failure_detail.judge.map(j => `${j.dimension} ${j.mean} < ${j.threshold} (${j.samples} samples)${j.rationale ? ` "${j.rationale}"` : ''}`).join('; ')}`
+      : `  Expected: ${d.failure_detail.expected} · Received: ${d.failure_detail.received}`;
+  return `  · cause ${d.failure_cause}${evidence}${detail}`;
+}
+
+/** Where a red's transcript lives and how to fetch it. */
+function evidencePointer(artifact: string, key: string, runId: string | undefined, id: string): string {
+  const arg = /^[\w./-]+$/.test(id) ? id : `'${id.replace(/'/g, `'\\''`)}'`;
+  return `  evidence: ${artifact}/shards/${shardSlug([key])}${runId ? ` (fetch: bun run eval:pass-rates --run ${runId} --case ${arg})` : ''}`;
+}
+
 /** Why one failed trial failed, in one line: a case timeout names its turn. */
-function trialCause(trial: PanelVerdict['trials'][number] & { timeout_at_turn?: number }): string {
+function trialCause(trial: PanelVerdict['trials'][number] & TrialDiagnosis & { timeout_at_turn?: number }): string {
   if (trial.outcome === 'skipped') return `t${trial.trial}: skipped`;
   const cls = trial.failure_class ?? 'assertion';
   const head = cls === 'timeout' || trial.exit_reason === 'timeout'
     ? `timeout${trial.timeout_at_turn !== undefined ? ` at turn ${trial.timeout_at_turn}` : ''}`
     : cls;
-  return `t${trial.trial}: ${head}${trial.exit_reason && trial.exit_reason !== 'timeout' ? ` (${trial.exit_reason})` : ''}${trial.error ? ` — ${trial.error}` : ''}`;
+  const exit = trial.exit_reason === 'success' ? ' (session completed; check failed)'
+    : trial.exit_reason && trial.exit_reason !== 'timeout' ? ` (${trial.exit_reason})` : '';
+  return `t${trial.trial}: ${head}${exit}${trial.error ? ` — ${trial.error}` : ''}${diagnosisText(trial, trial.error)}`;
 }
 
-export function rerunCommand(tier: PaidTier, id: string, trials: number): string {
-  return `bun run scripts/test-paid-shards.ts --tier ${tier} --case ${id}${trials > 1 ? ` --trials ${trials}` : ''}`;
+/**
+ * A paid run of exactly one case, for after a repair (never on unchanged
+ * inputs): E2E cases through --case, judges through their selection and an
+ * exact test-name filter, a keyless file (its own case) by file.
+ */
+export function afterRepairCommand(tier: PaidTier, id: string, file: string, trials = 1): string {
+  if (Object.hasOwn(E2E_TIERS, id)) return `bun run scripts/test-paid-shards.ts --tier ${tier} --case ${id}${trials > 1 ? ` --trials ${trials}` : ''}`;
+  if (Object.hasOwn(LLM_JUDGE_TOUCHFILES, id)) {
+    return `EVALS=1 EVALS_TIER=${tier} EVALS_JUDGE_SELECTION_JSON='${JSON.stringify({ version: 1, selected: [id], reason: 'after a repair' })}' bun test ${file} -t '${caseTestNamePattern([id])}'`;
+  }
+  return `EVALS=1 EVALS_TIER=${tier} bun test ${file}`;
 }
 
-/** One line per non-PASS or split panel verdict. */
-export function formatPanelLine(panel: PanelReport, tier: PaidTier): string {
+/** One line per non-PASS or split panel verdict. `artifacts` names each slice's artifact (slice -> name). */
+export function formatPanelLine(panel: PanelReport, tier: PaidTier, ctx: { artifacts?: Map<number, string>; runId?: string } = {}): string {
   const mark = panel.status === 'PASS' ? '⚠' : panel.failsLane ? '✗' : '◌';
   const label = panel.status === 'PASS' ? `PASS ${panel.passed}/${panel.panel.n}` : `${panel.status} ${panel.passed}/${panel.panel.n}`;
   const causes = panel.trials.filter(t => t.outcome !== 'passed').map(t => trialCause(t as any));
   const where = Object.entries(panel.slices).map(([trial, slice]) => `t${trial}@slice ${slice}`).join(', ');
+  const red = panel.trials.find(t => t.outcome === 'failed');
+  const slice = red ? panel.slices[red.trial] : undefined;
+  const evidence = red && slice !== undefined
+    ? evidencePointer(ctx.artifacts?.get(slice) ?? `slice ${slice} attempt ${panel.attempt}`, trialShardKey(panel.file, panel.case, red.trial), ctx.runId, panel.case) : '';
   return `${mark} ${panel.case}  ${panel.kind}${panel.quarantined ? ' (quarantined)' : ''}  ${label} (${panel.marks})`
     + `${causes.length ? `  ${causes.join('; ')}` : ''}${panel.status === 'INCOMPLETE' || panel.status === 'SKIPPED' ? `  [${panel.reason}]` : ''}`
-    + `${where ? `  [${where}, attempt ${panel.attempt}]` : ''}  rerun: ${rerunCommand(tier, panel.case, panel.panel.n)}`;
+    + `${where ? `  [${where}, attempt ${panel.attempt}]` : ''}${evidence}  after a repair: ${afterRepairCommand(tier, panel.case, panel.file, panel.panel.n)}`;
 }
 
 export interface ReportHeadline {
@@ -595,6 +639,8 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
         quarantined: t.quarantined, execution: outcome.reused ? 'reused' : 'executed', source: 'shard' } as TrialOutcomeRecord);
     }
   }
+  const sliceArtifacts = new Map(artifacts.filter(a => (a.result.attempt ?? 1) === primary)
+    .map(a => [a.result.sliceIndex, sliceArtifactName(a.root, a.result.sliceIndex, primary)] as const));
   const census = junitCensus(manifest, artifacts.filter(a => (a.result.attempt ?? 1) === primary), recordsByShard,
     common(primary), env.GSTACK_CLAUDE_CLI_VERSION);
   history.push(...census.history);
@@ -620,7 +666,7 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
     if (got && got.o.status === 'passed') return [];
     if (got && census.failedShards.has(normalizeRelativePath(entry.file))) return [];
     const id = shardCaseId(entry.file);
-    return [`✗ ${entry.file}  rule shard ${got ? got.o.status : 'NOT REPORTED'}${got?.o.runnerError ? ` — ${sanitizeTrialError(got.o.runnerError)}` : ''}  [slice ${entry.slice}, attempt ${primary}]${id ? `  rerun: ${rerunCommand(manifest.tier, id, 1)}` : ''}`];
+    return [`✗ ${entry.file}  rule shard ${got ? got.o.status : 'NOT REPORTED'}${got?.o.runnerError ? ` — ${sanitizeTrialError(got.o.runnerError)}` : ''}  [slice ${entry.slice}, attempt ${primary}]${id ? `  after a repair: ${afterRepairCommand(manifest.tier, id, shardFile(entry.file))}` : ''}`];
   });
   const behaviorPanels = panels.filter(p => !p.quarantined && p.kind === 'behavior');
   const lanePanels = panels.filter(p => !p.quarantined);
@@ -634,7 +680,7 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
   const failureLines = [
     ...ruleShardFailures,
     ...ruleCases.filter(c => c.line).map(c => c.line!),
-    ...panels.filter(p => p.status !== 'PASS' || p.split).map(p => formatPanelLine(p, manifest.tier)),
+    ...panels.filter(p => p.status !== 'PASS' || p.split).map(p => formatPanelLine(p, manifest.tier, { artifacts: sliceArtifacts, runId })),
   ];
   const red = verdict.problems.length > 0;
   const headline: ReportHeadline = {
@@ -662,7 +708,7 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
     for (const line of failureLines) console.log(`  ${line}`);
   }
   for (const panel of laterPanels) console.log(`  attempt ${panel.attempt} (re-run; reported, never replacing attempt ${primary}): ${formatPanelLine(panel, manifest.tier)}`);
-  const fence = (lines: string[]) => ['```', ...lines.map(line => line.replace(/```/g, "'''")), '```'];
+  const fence = (lines: string[]) => publishedFence(lines);
   fs.writeFileSync(summaryMdPath, [
     ...fence(headlineLines),
     ...(failureLines.length ? ['', '**Failures and split verdicts**', '', ...fence(failureLines)] : []),
@@ -678,7 +724,7 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
     marks: p.marks, split: p.split, quarantined: p.quarantined, failsLane: p.failsLane, redClass: p.redClass, reason: p.reason,
     trials: p.trials.map(t => ({ trial: t.trial, outcome: t.outcome, ...(t.failure_class ? { failure_class: t.failure_class } : {}),
       ...(t.exit_reason ? { exit_reason: t.exit_reason } : {}), ...(t.error ? { error: t.error } : {}) })) })),
-  failures: failureLines.map(line => sanitizeTrialError(line) ?? line) }, null, 2) + '\n');
+  failures: failureLines.map(line => sanitizePublishedText(line)) }, null, 2) + '\n');
   if (verdict.problems.length) {
     console.error(`[test:paid] report: ${verdict.problems.length} problem(s):`);
     for (const problem of verdict.problems) console.error(`  ✗ ${problem}`);
