@@ -254,10 +254,12 @@ describe('stop-reap wiring pins (#2709)', () => {
     );
 
     // 5. Post-graceful-stop: the daemon closed Chromium via Playwright, but a
-    //    surviving GPU process must still be reaped after sendCommand('stop').
+    //    surviving GPU process must still be reaped after sendCommand('stop') —
+    //    only once the daemon has exited (an earlier kill reads as a crash and
+    //    the daemon exits without removing its state file).
     const postStop = between('await sendCommand(state, command, commandArgs);', "if (command === 'focus')");
     expect(postStop).toMatch(
-      /if \(command === 'stop'\) \{\s*\n\s*await reapRecordedChromium\(state\);/,
+      /if \(command === 'stop'\) \{[\s\S]*while \(.*isProcessAlive\(state\.pid\)\)[^\n]*\n\s*await reapRecordedChromium\(state\);/,
     );
   });
 
