@@ -131,6 +131,15 @@ test('CEO handoff carries all answered rows instead of one synthetic approach', 
   expect(handoff).not.toContain('<approved 0D approach>');
 });
 
+// ci-37176837432 paid-slice-3 HOLD SCOPE skipped the helper and paraphrased ("holding scope");
+// ci-37198445662 paid-slice-3 HOLD SCOPE ran it, then wrote the plan, loaded sections and probed Codex
+// for 114 s before the posture chat. Both spent the case's 240 s post-selection window.
+test('CEO mode handoff chat follows the helper before any other tool call', () => {
+  const selection = between(skeletonSource(), '### 0E. Mode Selection', '### 0F.');
+  const instruction = selection.slice(selection.indexOf('4. **Mode handoff:**')).split('\n')[0]!;
+  expect(instruction).toContain('Then send brief chat beginning with that line, before any other tool call, plan write or section load, and never skip the helper');
+});
+
 // Guards the public handoff instruction, not model compliance or posture detection.
 test('CEO mode handoff applies the selected mode before the next question', () => {
   const selection = between(skeletonSource(), '### 0E. Mode Selection', '### 0F.');
