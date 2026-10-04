@@ -148,6 +148,14 @@ test('parent and child receive resolved local platform and base without new prob
     report: path.join(fixture.home, 'report.md'), publish: path.join(fixture.home, 'publish.ts'),
     scenario: 'current', testName: 'docsync-command-grammar', runId: 'free-control', timeout: 10000 });
   expect(options.prompt).toContain('Platform: local/git-native. Base: main.');
+  // A1: the parent points children at the saved interface instead of retyping it into their prompts.
+  const interfaceFile = path.join(fixture.home, 'fixture-interface.md');
+  expect(options.prompt).toContain(`saved at ${interfaceFile}: each child prompt tells the child to Read that file first`);
+  expect(options.prompt).not.toContain('include this interface in child prompts');
+  const saved = fs.readFileSync(interfaceFile, 'utf8');
+  expect(saved.startsWith('Fixture observation interface')).toBe(true);
+  expect(options.prompt.endsWith(saved.trimEnd())).toBe(true);
+  expect(fs.statSync(interfaceFile).mode & 0o777).toBe(0o600);
 });
 
 // The observer polices bash commands from the POSIX-only paid ship evals and refuses backslashes
