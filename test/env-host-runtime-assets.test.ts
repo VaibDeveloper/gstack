@@ -26,7 +26,7 @@ const renderDir = path.join(tmp, 'render');
 // Lookups that probe Claude-layout installs on purpose and fall through when
 // absent: /gstack-upgrade's install-type detection and the optional Chrome
 // extension path. design-html's vendored pretext.js is an optional probe too.
-const PROBE_FILES = /\/gstack-(?:upgrade|open-gstack-browser|connect-chrome)\/SKILL\.md$/;
+const PROBE_FILES = /[\\/]gstack-(?:upgrade|open-gstack-browser|connect-chrome)[\\/]SKILL\.md$/;
 const OPTIONAL_ROOT_PATHS = ['design-html/vendor'];
 
 function walk(dir: string): string[] {

@@ -10,7 +10,7 @@ const DIR = path.join(import.meta.dir, 'fixtures/detector-corpora', CASE);
 const ROOT = path.join(os.tmpdir(), 'docsync-late-result-corpus');
 const names = fs.readdirSync(DIR).filter(name => name.endsWith('.json') && name !== 'inventory.json').sort();
 const entries = names.map(name => ({ name, raw: fs.readFileSync(path.join(DIR, name), 'utf8') }))
-  .map(({ name, raw }) => ({ name, size: Buffer.byteLength(raw), entry: JSON.parse(raw.replaceAll('<ROOT>', ROOT)) }));
+  .map(({ name, raw }) => ({ name, size: Buffer.byteLength(raw), entry: JSON.parse(raw.replaceAll('<ROOT>', JSON.stringify(ROOT).slice(1, -1))) }));
 const inventory = JSON.parse(fs.readFileSync(path.join(DIR, 'inventory.json'), 'utf8'));
 
 describe(`${CASE} detector corpus`, () => {
