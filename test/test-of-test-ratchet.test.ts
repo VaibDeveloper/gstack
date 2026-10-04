@@ -66,6 +66,7 @@ const BASELINE = [
   'test/design-html-section-completion.test.ts',
   'test/detector-corpus-auto-decide-preserved.test.ts', // B1 replay corpus: census captures through the paid case's detectors (approved plan item)
   'test/detector-corpus-plan-ceo-section-loading.test.ts', // B1 replay corpus: census captures through the paid case's detectors (approved plan item)
+  'test/detector-corpus-plan-eng-multi-finding-batching.test.ts', // B1 replay corpus (GSTA-23 red 37228573062): census captures through the paid case's review-question counter
   'test/detector-corpus-shared-libs-plan-callers.test.ts', // B1 replay corpus: census captures through the paid case's actor (approved plan item)
   'test/detector-corpus-ship-docsync-late-result.test.ts', // B1 replay corpus: census captures through the paid case's detectors (approved plan item)
   'test/devex-peer-comparison-calibration.test.ts',

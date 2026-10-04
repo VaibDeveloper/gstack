@@ -83,3 +83,16 @@ None is near its own budget (plan-review-report peaks at 46% of 600 s). The fix
 is a refreshed duration seed so the planner packs slice 11 within the 540 s slice
 budget (lane F / integrator). review-army-perf and plan-design-review-plan-mode
 need no work.
+
+## plan-eng-multi-finding-batching: 975 s in census 37228573062 (GSTA-23 branch)
+
+The red trial ran 975 s of its 1,500 s armed session (65%), against 313-409 s
+in the nine earlier censuses (37162480720 … 37198445662). The wall is a
+consequence of the detector miss, not slower work: the runner stops
+collecting once the counter credits FLOOR = 3 review questions (normally
+by D3, about 5-7 minutes). The counter credited none, because the report
+declared its target mid-line ("… by the user. Review target (fixed):
+`PLAN.md` …"), so collection ran on through D10 and the completed report.
+With the target-field fix the same capture is credited at D5 (521 s).
+Replay: `bun test test/detector-corpus-plan-eng-multi-finding-batching.test.ts`.
+No budget or kind change.
