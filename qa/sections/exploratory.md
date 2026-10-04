@@ -33,7 +33,7 @@ Without a total time limit, do not create DEADLINE_FILE; announce finite command
 Stop when scoped contracts are tested or blocked.
 Clocks/checkpoints use REPORT_DIR; mixed standalone runs use REPORT_DIR/browser and REPORT_DIR/functional, with one final report at REPORT_DIR. Caller paths win.
 Names used below (quote every path):
-- PROBE_DIR: this surface's probe directory per the line above. DEADLINE_FILE: `PROBE_DIR/deadline.json`, which exists only for a bounded run.
+- PROBE_DIR: this surface's owned probe directory per the line above. DEADLINE_FILE: `PROBE_DIR/deadline.json`, which exists only for a bounded run.
 - SECONDS: the total probe budget set above. NNN: a fresh three-digit ID (001, 002, ...) for each capture or checkpoint; never reuse one.
 - DEADLINE_TOOL = `$HOME/.claude/skills/gstack/bin/gstack-qa-deadline`, the deadline guard: `start` creates DEADLINE_FILE, `status` prints `remainingMs` and `expired`, and `run` executes one command, stopping it at the deadline.
 - EVIDENCE_TOOL = `$HOME/.claude/skills/gstack/bin/gstack-qa-evidence`, the functional evidence recorder: `capture` runs one command, stores its exit code, stdout and stderr under `PROBE_DIR/.qa-evidence/NNN/`, and prints status `complete`, `incomplete` or `sensitive`.
