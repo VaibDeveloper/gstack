@@ -22,7 +22,9 @@ const gate = compact(entry.slice(entry.indexOf('## Step 16:'), entry.indexOf('##
 describe('ship source controller', () => {
   test('documentation freshness covers selected code paths as well as release metadata', () => {
     const docs = compact(read('ship/sections/documentation.md.tmpl'));
-    expect(docs).toContain('selected release paths, generated outputs and docs/templates');
+    // Meaning: the snapshot hashes selected release (code) paths, not only release metadata.
+    expect(docs).toContain('hashes of release paths, generated outputs and docs');
+    expect(docs).toContain('`--select <path>` narrows release paths');
     const freshness = gate.slice(gate.indexOf('### 3.'), gate.indexOf('### 4.'));
     expect(freshness).toContain('selected release paths, generated outputs and docs/templates');
     expect(freshness).toMatch(/a prior invocation's audit or risk decision never qualifies/i);
