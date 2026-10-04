@@ -33,7 +33,9 @@ import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
   type EvalCaseKind, type PanelShape, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
+  trialFailureFields, trialSessions,
 } from '../../test/helpers/eval-store';
+import { readSessionLedger, type SessionLedgerRow } from '../../test/helpers/session-ledger';
 import { E2E_KINDS } from '../../test/helpers/touchfiles-data';
 import { manualReviewProblem } from '../../test/helpers/cookie-workflow-manual-review';
 import { preflightAnthropicApi } from '../../test/helpers/anthropic-preflight';
@@ -225,6 +227,11 @@ export interface JUnitCensus {
 
 const bump = (counts: Map<string, number>, key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
 
+/** Ledger rows of one JUnit case: its own id or test name, else the shard's only case. */
+function caseSessions(rows: SessionLedgerRow[], id: string, onlyCase: boolean): SessionLedgerRow[] {
+  return rows.filter(row => row.case === id || (!row.case && (onlyCase || row.test_name === id || row.test_name === CASE_TEST_NAMES[id])));
+}
+
 export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact[], recordsByShard: Map<string, any[]>,
   base: Record<string, unknown>, cliVersion?: string): JUnitCensus {
   const census: JUnitCensus = { ruleCases: [], history: [], failedShards: new Set(), skipped: [], deselected: new Map(), shardSkipReasons: new Map(), unattributed: [] };
@@ -245,6 +252,7 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
         else census.unattributed.push(`${key} :: ${tc.name || '(no name)'} (${tc.outcome})`);
       }
       const records = recordsByShard.get(key) ?? [];
+      const ledger = readSessionLedger(path.join(root, 'shards', shardSlug([key])));
       for (const [id, cases] of byCase) {
         const kind = (E2E_KINDS[id] ?? 'rule') as EvalCaseKind;
         const failed = cases.find(tc => tc.outcome === 'failed');
@@ -255,6 +263,9 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
           : failed.failureType === 'TimeoutError' ? 'timeout' : failedRecord ? failureClassOf(failedRecord) : 'assertion';
         const error = sanitizeTrialError(failedRecord?.error ?? failed?.message);
         const rerun = Object.hasOwn(E2E_TIERS, id) ? rerunCommand(manifest.tier, id, 1) : `EVALS=1 EVALS_TIER=${manifest.tier} bun test ${shardFile(key)}`;
+        const sessions = caseSessions(ledger, id, byCase.size === 1);
+        const diagnosis = failed && failureClass ? trialFailureFields({ failure_class: failureClass, exit_reason: failedRecord?.exit_reason,
+          error: failedRecord?.error ?? failed.message, sessions, record: failedRecord }) : undefined;
         if (failed) census.failedShards.add(key);
         if (caseOutcome === 'skipped') {
           bump(reasons, RUNTIME_SKIP_REASON);
@@ -264,7 +275,7 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
           ...(failed ? { line: `✗ ${id}  ${kind}  FAIL  ${failureClass}${failedRecord?.exit_reason === 'timeout' && failedRecord?.timeout_at_turn !== undefined ? ` at turn ${failedRecord.timeout_at_turn}` : ''}${error ? ` — ${error}` : ''}  [slice ${result.sliceIndex}, attempt ${result.attempt ?? 1}]  rerun: ${rerun}` } : {}) });
         census.history.push({ ...base, case: id, file: shardFile(key), kind, trial: 1, panel: { n: 1, k: 1 }, outcome: caseOutcome,
           ...(failureClass ? { failure_class: failureClass } : {}), ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
-          ...(error && failed ? { error } : {}), duration_ms: cases.reduce((sum, tc) => sum + tc.timeMs, 0),
+          ...(error && failed ? { error } : {}), ...diagnosis, ...trialSessions(sessions), duration_ms: cases.reduce((sum, tc) => sum + tc.timeMs, 0),
           cost_usd: Math.round(mine.reduce((sum: number, r: any) => sum + (Number(r.cost_usd) || 0), 0) * 100) / 100,
           ...(typeof mine[0]?.model === 'string' ? { model: mine[0].model } : {}), ...(cliVersion ? { cli_version: cliVersion } : {}),
           quarantined: false, execution: outcome.reused ? 'reused' : 'executed', source: 'junit' } as TrialOutcomeRecord);
@@ -576,6 +587,9 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
       history.push({ ...common(attempt), case: t.case, file: shardFile(outcome.files[0]!), kind: t.kind, trial: t.trial, panel: t.panel,
         outcome: t.outcome, ...(t.outcome === 'failed' ? { failure_class: t.failure_class ?? 'assertion' } : {}),
         ...(t.exit_reason ? { exit_reason: t.exit_reason } : {}), ...(t.error ? { error: t.error } : {}),
+        ...(t.outcome === 'failed' && t.failure_cause ? { failure_cause: t.failure_cause } : {}),
+        ...(t.outcome === 'failed' && t.failure_cause_evidence ? { failure_cause_evidence: t.failure_cause_evidence } : {}),
+        ...(t.outcome === 'failed' && t.failure_detail ? { failure_detail: t.failure_detail } : {}), ...(t.sessions ? { sessions: t.sessions } : {}),
         duration_ms: t.duration_ms, cost_usd: t.cost_usd, ...(t.model ? { model: t.model } : {}),
         ...(outcome.reused ? { input_identity: outcome.reused.inputKey } : {}),
         quarantined: t.quarantined, execution: outcome.reused ? 'reused' : 'executed', source: 'shard' } as TrialOutcomeRecord);

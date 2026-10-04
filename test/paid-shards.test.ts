@@ -686,6 +686,33 @@ describe('isolated trial shards: record, classification and slice exit', () => {
     }
   });
 
+  test('classification adds cause, detail and ledger sessions; failure_class and outcome never change', () => {
+    const sessions = [{ key: 'claude-p:review-sql-injection#1', runner: 'claude-p' as const, started_at: 't', budget_ms: 300_000, elapsed_ms: 300_100,
+      end: 'session_timeout' as const, evidence: 'armed 300000ms session timeout fired', liveness: { partial: true, events: 9, turns: 2, max_request_silence_ms: 150_000 } }];
+    const inputs: Array<[Partial<ShardOutcome>, { records: any[]; contract: string | null }]> = [
+      [{}, none], [{}, { records: [], contract: 'handoff missing' }],
+      [{ status: 'failed' }, { records: [{ passed: false, exit_reason: 'timeout', timeout_at_turn: 9, error: 'x' }], contract: null }],
+      [{ status: 'failed' }, { records: [{ passed: false, exit_reason: 'success', error: 'expect(received).toBe(expected)\n\nExpected: 3\nReceived: 2\n' }], contract: null }],
+      [{ status: 'timed-out', executedTests: null, skippedTests: null }, none],
+      [{ status: 'failed', executedTests: null, skippedTests: null }, none],
+    ];
+    for (const [over, evidence] of inputs) {
+      const before = classifyTrialShard({ ...base, ...over }, 'review-sql-injection', 1, plan, evidence);
+      const after = classifyTrialShard({ ...base, ...over }, 'review-sql-injection', 1, plan, { ...evidence, sessions });
+      expect([after.outcome, after.failure_class, after.error], JSON.stringify(over)).toEqual([before.outcome, before.failure_class, before.error]);
+      expect(after.sessions).toEqual([{ key: 'claude-p:review-sql-injection#1', runner: 'claude-p', elapsed_ms: 300_100, budget_ms: 300_000, end: 'session_timeout' }]);
+      expect(after.failure_cause === undefined).toBe(after.outcome !== 'failed');
+    }
+    const c = (over: Partial<ShardOutcome>, evidence: { records: any[]; contract: string | null; sessions?: any[] }) =>
+      classifyTrialShard({ ...base, ...over }, 'review-sql-injection', 1, plan, evidence);
+    expect(c({ status: 'failed' }, { records: [{ passed: false, exit_reason: 'success', error: 'expect(received).toBe(expected)\n\nExpected: 3\nReceived: 2\n' }], contract: null }))
+      .toMatchObject({ failure_class: 'assertion', error: 'expect(received).toBe(expected)', failure_cause: 'assertion',
+        failure_cause_evidence: 'session completed; check failed', failure_detail: { expected: '3', received: '2' } });
+    expect(c({ status: 'failed' }, { records: [{ passed: false, exit_reason: 'timeout', error: 'Error: Claude Code process aborted by user' }], contract: null, sessions }))
+      .toMatchObject({ failure_class: 'timeout', failure_cause: 'provider_stall' });
+    expect(c({}, { records: [], contract: 'handoff missing', sessions })).toMatchObject({ failure_class: 'contract', failure_cause: 'contract', failure_cause_evidence: 'handoff missing' });
+  });
+
   test('slice exit: rule shards stay strict; failed trials never red the runner, missing records do', () => {
     const trial = (outcome: 'passed' | 'failed' | null) => ({ status: outcome === 'failed' ? 'failed' as const : 'passed' as const,
       trial: { case: 'c', trial: 1, ...plan, outcome, cost_usd: 0, duration_ms: 1, ...(outcome === null ? { harness: 'never started' } : {}) } });

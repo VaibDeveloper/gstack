@@ -13,6 +13,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { DESELECTION_REASONS, RUNTIME_SKIP_REASON, attributeJUnitCase, formatPanelLine, runPaidReport, type JUnitCase } from '../scripts/test-paid-shards';
 import { panelVerdict } from './helpers/eval-store';
+import { trialRecordProblems as trialRecordProblemsV1 } from './fixtures/trial-record-v1-reader';
 
 const FIXTURES = path.join(import.meta.dir, 'fixtures', 'paid-report-census');
 
@@ -89,6 +90,37 @@ describe('census attribution from the 2026-10-03 artifacts', () => {
     expect(collector.census.unattributed).toEqual(['test/skill-e2e-cso.test.ts :: an unlabeled helper (passed)']);
     expect(collector.census.skipped).toHaveLength(1);
     expect(collector.verdict.counts).toMatchObject({ skipped: 1, unattributed: 1 });
+  });
+});
+
+describe('record builders attach ledger sessions and failure causes (plan 0.1/0.2)', () => {
+  const noOp = (dir: string) => path.join(dir, 'paid-slice-1-a1', 'shards', 'skill-e2e-plan-mode-no-op');
+  const failNoOp = (dir: string) => {
+    const file = path.join(noOp(dir), 'junit.xml');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8')
+      .replace('failures="0"', 'failures="1"')
+      .replace(/(<testcase name="plan-ceo-review reaches a terminal outcome outside plan mode"[^>]*?) \/>/,
+        '$1><failure type="AssertionError" message="plan-ceo-review: outcome=timeout (no terminal outcome within 180000ms)" /></testcase>'));
+    fs.writeFileSync(path.join(noOp(dir), 'session-ledger.jsonl'), [
+      { key: 'pty:session#1', runner: 'pty', started_at: 't', budget_ms: 180_000, elapsed_ms: 16_800, end: 'completed' },
+      { key: 'pty:session#2', runner: 'pty', started_at: 't', budget_ms: 180_000, elapsed_ms: 180_050, end: 'observer_timeout' },
+    ].map(row => JSON.stringify(row)).join('\n') + '\nnot json\n');
+  };
+
+  test('a JUnit-only PTY case gets failure_cause and sessions from its ledger; failure_class is unchanged', () => {
+    const r = report('gate', failNoOp);
+    const noOpRecord = r.history.find(record => record.case === 'plan-mode-no-op');
+    expect(noOpRecord).toMatchObject({ outcome: 'failed', failure_class: 'assertion', failure_cause: 'observer_timeout',
+      failure_cause_evidence: 'plan-ceo-review: outcome=timeout (no terminal outcome within 180000ms)',
+      sessions: [{ key: 'pty:session#1', runner: 'pty', elapsed_ms: 16_800, budget_ms: 180_000, end: 'completed' },
+        { key: 'pty:session#2', runner: 'pty', elapsed_ms: 180_050, budget_ms: 180_000, end: 'observer_timeout' }] });
+    for (const record of r.history) expect(trialRecordProblemsV1(record), record.case).toEqual([]);
+    const plain = report('gate', dir => { failNoOp(dir); fs.rmSync(path.join(noOp(dir), 'session-ledger.jsonl')); });
+    const without = plain.history.find(record => record.case === 'plan-mode-no-op');
+    expect(without.failure_class).toBe(noOpRecord.failure_class);
+    expect(without.sessions).toBeUndefined();
+    const collector = (dir: string) => JSON.parse(fs.readFileSync(path.join(dir, 'collector-outcomes.json'), 'utf8'));
+    expect(collector(plain.dir).verdict).toEqual(collector(r.dir).verdict);
   });
 });
 

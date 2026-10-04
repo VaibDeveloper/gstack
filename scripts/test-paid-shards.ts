@@ -83,7 +83,9 @@ import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
   type EvalCaseKind, type PanelShape, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
+  trialFailureFields, trialSessions, type TrialFailureCause, type TrialFailureDetail, type TrialSessionSummary,
 } from '../test/helpers/eval-store';
+import { readSessionLedger, type SessionLedgerRow } from '../test/helpers/session-ledger';
 import { E2E_KINDS } from '../test/helpers/touchfiles-data';
 import { manualReviewProblem } from '../test/helpers/cookie-workflow-manual-review';
 import { preflightAnthropicApi } from '../test/helpers/anthropic-preflight';
@@ -720,10 +722,16 @@ export interface ShardTrialRecord {
   cost_usd: number;
   duration_ms: number;
   model?: string;
+  failure_cause?: TrialFailureCause;
+  failure_cause_evidence?: string;
+  failure_detail?: TrialFailureDetail;
+  sessions?: TrialSessionSummary[];
 }
 
-/** Records and contract evidence an isolated shard left in its eval dir. */
-export function readTrialEvidence(evalDir: string | undefined): { records: any[]; contract: string | null } {
+type TrialEvidence = { records: any[]; contract: string | null; sessions?: SessionLedgerRow[] };
+
+/** Records, contract evidence and session-ledger rows an isolated shard left in its eval dir. */
+export function readTrialEvidence(evalDir: string | undefined): TrialEvidence {
   if (!evalDir || !fs.existsSync(evalDir)) return { records: [], contract: null };
   const names = fs.readdirSync(evalDir);
   const parse = (name: string) => { try { return JSON.parse(fs.readFileSync(path.join(evalDir, name), 'utf8')); } catch { return null; } };
@@ -736,28 +744,31 @@ export function readTrialEvidence(evalDir: string | undefined): { records: any[]
     const line = fs.readFileSync(path.join(evalDir, CONTRACT_VIOLATIONS_FILE), 'utf8').split('\n').find(l => l.trim());
     if (line) contract = String(JSON.parse(line).message ?? 'contract violation');
   } catch { /* no sidecar */ }
-  return { records, contract };
+  return { records, contract, sessions: readSessionLedger(evalDir) };
 }
 
 /** Classify one isolated trial shard. Contract evidence always fails the trial. */
 export function classifyTrialShard(
   outcome: Pick<ShardOutcome, 'status' | 'executedTests' | 'skippedTests' | 'elapsedMs' | 'runnerError'>,
   caseId: string, trial: number, plan: CaseTrialPlan,
-  evidence: { records: any[]; contract: string | null },
+  evidence: TrialEvidence,
 ): ShardTrialRecord {
   const failedRecord = evidence.records.find(record => record.passed === false) ?? evidence.records[0];
   const base: ShardTrialRecord = {
     case: caseId, trial, kind: plan.kind, panel: plan.panel, quarantined: plan.quarantined, outcome: null,
     cost_usd: Math.round(evidence.records.reduce((sum, record) => sum + (Number(record.cost_usd) || 0), 0) * 100) / 100,
     duration_ms: outcome.elapsedMs,
-    ...(typeof failedRecord?.model === 'string' ? { model: failedRecord.model } : {}),
+    ...(typeof failedRecord?.model === 'string' ? { model: failedRecord.model } : {}), ...trialSessions(evidence.sessions ?? []),
   };
-  const failed = (failureClass: TrialFailureClass, error?: string): ShardTrialRecord => ({
-    ...base, outcome: 'failed', failure_class: evidence.contract !== null ? 'contract' : failureClass,
-    ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
-    ...(Number.isInteger(failedRecord?.timeout_at_turn) ? { timeout_at_turn: failedRecord.timeout_at_turn } : {}),
-    ...(sanitizeTrialError(evidence.contract ?? failedRecord?.error ?? error) ? { error: sanitizeTrialError(evidence.contract ?? failedRecord?.error ?? error) } : {}),
-  });
+  const failed = (failureClass: TrialFailureClass, error?: string): ShardTrialRecord => {
+    const cls = evidence.contract !== null ? 'contract' : failureClass;
+    const raw = evidence.contract ?? failedRecord?.error ?? error;
+    return { ...base, outcome: 'failed', failure_class: cls,
+      ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
+      ...(Number.isInteger(failedRecord?.timeout_at_turn) ? { timeout_at_turn: failedRecord.timeout_at_turn } : {}),
+      ...(sanitizeTrialError(raw) ? { error: sanitizeTrialError(raw) } : {}),
+      ...trialFailureFields({ failure_class: cls, exit_reason: failedRecord?.exit_reason, error: raw, sessions: evidence.sessions, record: failedRecord }) };
+  };
   if (outcome.runnerError !== undefined) return { ...base, harness: `runner error: ${sanitizeTrialError(outcome.runnerError) ?? 'unknown'}` };
   if (outcome.status === 'never-started') return { ...base, harness: 'never started' };
   if (outcome.status === 'passed-empty') return { ...base, harness: 'hollow: executed no case' };
