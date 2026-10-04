@@ -47,4 +47,23 @@ summarised below after the run.
 
 ## Results
 
-Pending the run.
+Run 2026-10-04 on branch `wave/s-followups` (36 calls, `results.json` holds every
+sample and rationale). Means are clarity / completeness / actionability.
+
+| Judge | Positive | Negative | Targeted defect |
+|---|---|---|---|
+| qa workflow | pass 4.00 / 4.33 / 4.00 | fail 3.00 / 3.33 / 2.33 | **pass** 3.33 / 4.00 / 4.00 |
+| qa-only workflow | pass 3.67 / 4.33 / 4.00 | fail 2.00 / 1.33 / 1.00 | fail 2.00 / 4.00 / 2.67 |
+| review workflow | pass 4.00 / 4.00 / 4.00 | fail 2.00 / 1.00 / 1.00 | **pass** 4.00 / 4.00 / 4.00 |
+| setup-deploy platform setup | pass 4.00 / 4.00 / 4.00 | fail 1.33 / 1.00 / 1.00 | fail 4.00 / 3.00 / 3.33 |
+
+- Every judge separates the negative control, so each gives coverage for gross
+  breakage; no case is listed as giving no coverage.
+- No positive sample scored 5 on any dimension, consistent with the 4.00
+  compression seen in census 37198445662.
+- Sensitivity gaps: the qa workflow judge passed a bundle with no Phase 10 report
+  step (no sample mentioned it), and the review workflow judge passed a bundle with
+  no Step 3 (two of three samples noticed "no Step 3 exists" but rated it minor). In
+  bundles of 70-160 KB these judges do not detect a missing deliverable or input
+  step. A rubric proposal (anchor 4 and 5 to named deliverables and inputs) is a
+  pre-registered EVAL_POLICY change for Garry, not part of this change.
