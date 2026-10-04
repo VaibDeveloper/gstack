@@ -58,6 +58,7 @@ The first three rows are the ones users feel. The last three are why the next ce
 - `bun run scripts/test-paid-shards.ts --case <id>` selects cases registered in a loop and whole-file cases such as plan-mode-no-op; it used to select nothing.
 - The plan-review floor test approves its own plan-file edit when the diff preview soft-wraps unchanged lines.
 - The /plan-ceo-review approach-menu eval no longer asks for "verbatim ... exact prose" output, which tripped the provider's output-extraction refusal.
+- `gstack-docs-candidate --help` prints its usage and exits 0; its usage error pointed at a `--help` that failed. The docs gate fixtures declare it, and an "atomic replacement unproven" line now names the check and the tool failure that denied it.
 - The prosons neutral-posture check no longer reads "a coverage call, not a taste call" as the neutral dodge.
 
 #### For contributors

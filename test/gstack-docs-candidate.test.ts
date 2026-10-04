@@ -80,13 +80,22 @@ describe('gstack-docs-candidate', () => {
       ['snapshot', '--out', path.join(root, 'x.json'), '--audit-id', 'a', '--mode', 'write', '--base', 'main'],
       ['snapshot', '--out', path.join(root, 'y.json'), '--audit-id', 'a', '--mode', 'edit', '--base', 'no-such-rev'],
       ['snapshot', '--out', path.join(root, 'z.json'), '--audit-id', 'a', '--mode', 'edit', '--base', 'main', '--force', 'x'],
-      ['compare'], ['compare', path.join(root, 'missing.json')], ['install'],
+      ['compare'], ['compare', path.join(root, 'missing.json')], ['install'], ['--help', 'snapshot'],
     ]) {
       const result = run(dir, ...args);
       expect(result.status, args.join(' ')).toBe(1);
       expect(result.stderr).toContain('gstack-docs-candidate:');
     }
     expect(fs.existsSync(path.join(dir, 'inside.json'))).toBe(false);
+  });
+
+  test('--help prints the usage it names in its errors', () => {
+    const { dir } = repo();
+    const help = run(dir, '--help');
+    expect(help.status, help.stderr).toBe(0);
+    expect(help.stdout).toContain('gstack-docs-candidate snapshot --out <candidate.json>');
+    expect(help.stdout).toContain('gstack-docs-candidate compare <candidate.json>');
+    expect(run(dir, 'install').stderr).toContain(help.stdout.trim());
   });
 
   test('/ship records post-child hashes with the helper, so Step 16 compares instead of retyping', () => {
