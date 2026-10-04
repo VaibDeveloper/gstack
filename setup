@@ -621,15 +621,18 @@ _link_or_copy() {
 }
 
 # _link_runtime_dists SOURCE ROOT — the compiled design and make-pdf binaries
-# behind $GSTACK_DESIGN and $GSTACK_MAKE_PDF on every env-var host (#2891).
-# dist/ only, never the whole directory: make-pdf/ ships a Claude SKILL.md a
-# host scanning its skills root would discover as a duplicate skill.
+# behind $GSTACK_DESIGN and $GSTACK_MAKE_PDF on every env-var host (#2891),
+# and freeze/bin (with the careful/bin helper it sources), whose state and
+# check scripts /freeze, /guard, /unfreeze and /investigate run as
+# "$GSTACK_ROOT/freeze/bin/...". Subdirectories only, never the whole skill
+# directory: make-pdf/, freeze/ and careful/ ship a Claude SKILL.md a host
+# scanning its skills root would discover as a duplicate skill.
 _link_runtime_dists() {
   local d
-  for d in design/dist make-pdf/dist; do
+  for d in design/dist make-pdf/dist freeze/bin careful/bin; do
     [ -d "$1/$d" ] || continue
     if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$2/$d" ] || [ ! -e "$2/$d" ]; then
-      mkdir -p "$2/${d%/dist}"
+      mkdir -p "$2/${d%/*}"
       _link_or_copy "$1/$d" "$2/$d"
     fi
   done
