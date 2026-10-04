@@ -314,7 +314,7 @@ describe('judge-named QA workflow gaps (C2)', () => {
     for (const skillName of ['qa', 'qa-only']) {
       const text = generateQAExploratory(ctx(skillName));
       const layout = text.indexOf('mixed standalone runs use REPORT_DIR/browser and REPORT_DIR/functional');
-      const probeDir = text.indexOf("PROBE_DIR: this surface's probe directory per the line above.");
+      const probeDir = text.indexOf("PROBE_DIR: this surface's owned probe directory per the line above.");
       expect(layout).toBeGreaterThan(-1);
       expect(probeDir).toBeGreaterThan(layout);
       expect(text.slice(layout, probeDir).split('\n')).toHaveLength(3);
