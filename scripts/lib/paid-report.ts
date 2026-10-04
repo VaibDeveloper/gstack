@@ -304,6 +304,7 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
           : failed.failureType === 'TimeoutError' ? 'timeout' : failedRecord ? failureClassOf(failedRecord) : 'assertion';
         const error = sanitizeTrialError(failedRecord?.error ?? failed?.message);
         const sessions = caseSessions(ledger, id, byCase.size === 1);
+        // A case's JUnit times sum its concurrent tests (plan-mode-no-op: 346 s in a 176 s shard), so its wall is capped by the shard's.
         const diagnosis = failed && failureClass ? trialFailureFields({ failure_class: failureClass, exit_reason: failedRecord?.exit_reason,
           error: failedRecord?.error ?? failed.message, sessions, record: failedRecord }, STALL_WINDOW_MS) : undefined;
         if (failed) census.failedShards.add(key);
@@ -318,7 +319,7 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
             + `  after a repair: ${afterRepairCommand(manifest.tier, id, shardFile(key))}` } : {}) });
         census.history.push({ ...base, case: id, file: shardFile(key), kind, trial: 1, panel: { n: 1, k: 1 }, outcome: caseOutcome,
           ...(failureClass ? { failure_class: failureClass } : {}), ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
-          ...(error && failed ? { error } : {}), ...diagnosis, ...trialSessions(sessions), duration_ms: cases.reduce((sum, tc) => sum + tc.timeMs, 0),
+          ...(error && failed ? { error } : {}), ...diagnosis, ...trialSessions(sessions), duration_ms: Math.min(cases.reduce((sum, tc) => sum + tc.timeMs, 0), outcome.elapsedMs),
           cost_usd: Math.round(mine.reduce((sum: number, r: any) => sum + (Number(r.cost_usd) || 0), 0) * 100) / 100, ...trialCostKnown(mine, sessions),
           ...(typeof mine[0]?.model === 'string' ? { model: mine[0].model } : {}), ...(cliVersion ? { cli_version: cliVersion } : {}),
           quarantined: false, execution: outcome.reused ? 'reused' : 'executed', source: 'junit' } as TrialOutcomeRecord);

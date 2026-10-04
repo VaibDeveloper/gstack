@@ -115,6 +115,8 @@ describe('record builders attach ledger sessions and failure causes (plan 0.1/0.
       sessions: [{ key: 'pty:session#1', runner: 'pty', elapsed_ms: 16_800, budget_ms: 180_000, end: 'completed' },
         { key: 'pty:session#2', runner: 'pty', elapsed_ms: 180_050, budget_ms: 180_000, end: 'observer_timeout' }] });
     for (const record of r.history) expect(trialRecordProblemsV1(record), record.case).toEqual([]);
+    // Its five tests run concurrently: JUnit times sum to 346 s, the shard's wall is 176.5 s (lane S A2).
+    expect(noOpRecord.duration_ms).toBe(176_495);
     const plain = report('gate', dir => { failNoOp(dir); fs.rmSync(path.join(noOp(dir), 'session-ledger.jsonl')); });
     const without = plain.history.find(record => record.case === 'plan-mode-no-op');
     expect(without.failure_class).toBe(noOpRecord.failure_class);
