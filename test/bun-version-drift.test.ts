@@ -142,6 +142,11 @@ describe('Bun requirement surfaces agree (E1)', () => {
     }
   });
 
+  test('BROWSE SETUP install hint pins the tested version', () => {
+    const resolver = fs.readFileSync(path.join(ROOT, 'scripts', 'resolvers', 'browse.ts'), 'utf-8');
+    expect([...resolver.matchAll(/BUN_VERSION="([0-9][^"]*)"/g)].map((m) => m[1])).toEqual([tested]);
+  });
+
   // Compiled probe of the security floor: a binary built with the four
   // no-autoload flags must not read a .env beside it. Run by hand against
   // released binaries on 2026-10-04: Bun 1.3.2 accepted the flags and still
