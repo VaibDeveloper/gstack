@@ -268,6 +268,9 @@ function caseSessions(rows: SessionLedgerRow[], id: string, onlyCase: boolean): 
 }
 
 /** The artifact holding a slice's shards: the downloaded directory's own name when it is one. */
+/** The red-census guide the report and every eval:pass-rates view link. */
+export const CENSUS_RED_GUIDE = 'docs/evals/census-red.md';
+
 export function sliceArtifactName(root: string, slice: number, attempt: number): string {
   const name = path.basename(root);
   return /^(?:paid-slice|gate-census)-\d+-a\d+$/.test(name) ? name : `slice ${slice} attempt ${attempt}`;
@@ -762,7 +765,7 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
     ...fence(headlineLines),
     ...(failureLines.length ? ['', '**Failures and split verdicts**', '', ...fence(failureLines)] : []),
     ...(censusLines.length ? ['', '**Skipped, deselected and unattributed testcases**', '', ...fence(censusLines)] : []),
-    ...(verdict.problems.length ? ['', `**ACTION REQUIRED (${verdict.problems.length})**`, '', ...fence(verdict.problems.map(p => sanitizeTrialError(p) ?? p))] : []),
+    ...(verdict.problems.length ? ['', `**ACTION REQUIRED (${verdict.problems.length})**`, '', ...fence(verdict.problems.map(p => sanitizeTrialError(p) ?? p)), '', `Guide: ${CENSUS_RED_GUIDE}`] : []),
   ].join('\n') + '\n');
   if (!manualProblems.length) fs.writeFileSync(summaryPath, JSON.stringify({ version: 2, files, totals: {
     ...evidence, total: evidence.passed + evidence.failed + evidence.manual_accepted,

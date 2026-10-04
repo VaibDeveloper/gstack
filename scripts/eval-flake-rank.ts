@@ -54,7 +54,7 @@ import { matchGlob } from '../test/helpers/test-selection';
 import { CASE_TEST_NAMES } from './test-paid-shards';
 import { resolveStateRoot } from '../lib/state-root';
 import { GH_JOBS, PASS_RATES_USAGE, criticalPath, formatCriticalPath, formatHeadroom, formatRedLedger, headroom, headroomAlarms, parsePassRatesArgs,
-  redLedger, triageRun, type CriticalPath } from './lib/eval-history';
+  redLedger, triageRun, CENSUS_RED_GUIDE, type CriticalPath } from './lib/eval-history';
 
 interface TestSeries {
   name: string;
@@ -705,7 +705,7 @@ if (import.meta.main) {
     const lines = view === 'headroom' ? formatHeadroom(caseHeadroom, critical) : view === 'reds' ? formatRedLedger(redLedger(scoped))
       : historyError ? [] : triageRun({ repo, run: fetched.find(run => run.id === parsed.runId)!, records, caseFilter, cacheDir, fetcher: GH_HISTORY,
         download: (match, maxBytes) => downloadRunArtifacts({ repo, run: fetched.find(run => run.id === parsed.runId)!, match, cacheDir, maxBytes }) })
-        .concat(formatCriticalPath(critical));
+        .concat(formatCriticalPath(critical), historyError ? [] : [`guide: ${CENSUS_RED_GUIDE}`]);
     if (asJson) console.log(JSON.stringify({ scope, historyError, view, lines }, null, 2));
     else {
       console.log(`scope: ${scope}`);

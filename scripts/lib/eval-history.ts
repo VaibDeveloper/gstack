@@ -26,6 +26,9 @@ import { sanitizeFixedFenceLine } from './published-text';
 import type { HistoryFetcher, WeeklyRun } from '../eval-flake-rank';
 import { CASE_SHARDED_FILES, trialShardKey } from './paid-cases';
 import { shardSlug } from '../test-paid-shards';
+import { CENSUS_RED_GUIDE } from './paid-report';
+
+export { CENSUS_RED_GUIDE };
 
 /** Below this many session samples a case's headroom is insufficient, never a pass. */
 export const HEADROOM_MIN_SAMPLES = 3;
@@ -214,6 +217,7 @@ export function formatRedLedger(ledger: RedLedger, opts: { top?: number } = {}):
   const g = ledger.allGreen;
   lines.push(g ? `all-green probability (approximation, assumes independent verdicts): ${pct(g.p)} for the latest census's ${g.verdicts} verdicts [${pct(g.lo)}–${pct(g.hi)} with the pooled rate's 95% interval as prior]; `
     + 'formula Π(1 - p_i) over its cases; rerun: bun run eval:pass-rates --reds' : 'all-green probability: no post-policy verdicts');
+  lines.push(`guide: ${CENSUS_RED_GUIDE}`);
   return lines;
 }
 

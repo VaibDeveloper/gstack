@@ -200,6 +200,7 @@ describe('red lines carry their values, evidence and a one-case command (plan 0.
     expect(open.length).toBeGreaterThan(3);
     expect(lines.slice(at).find(l => /^`{3,}$/.test(l))).toBe(open);
     expect(summary).not.toMatch(/@team/);
+    if (summary.includes('**ACTION REQUIRED')) expect(summary.trimEnd().endsWith('Guide: docs/evals/census-red.md')).toBe(true);
     const collector = JSON.parse(fs.readFileSync(path.join(r.dir, 'collector-outcomes.json'), 'utf8'));
     expect(collector.failures.join('\n')).not.toContain('`');
   });

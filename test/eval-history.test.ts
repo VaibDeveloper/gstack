@@ -100,6 +100,7 @@ describe('red ledger over the 8 wave censuses', () => {
     expect(text).toContain('rerun: bun run eval:pass-rates --reds');
     expect(text).toContain('37186854666 gate/full census: 1 red of');
     expect(text).toContain('class: timeout 1; cause: unrecorded 1');
+    expect(formatRedLedger(ledger).at(-1)).toBe('guide: docs/evals/census-red.md');
   });
 
   test('new records group reds by machine cause', () => {
