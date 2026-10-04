@@ -62,3 +62,18 @@ describe('auto-decide-preserved detector corpus', () => {
     }
   });
 });
+
+describe('auto-decide handoff needs a user-visible witness', () => {
+  test('37182865432: the helper result alone is refused; the same session is credited once its chat begins with the line', () => {
+    const entry = load('37182865432-t1-fail.json');
+    const line = 'Auto-decided review mode → HOLD SCOPE (your preference). Change with /plan-tune. Approved decisions: none.';
+    expect(entry.input.native.tools.some((t: { kind: string; content?: unknown }) => t.kind === 'result' && t.content === line)).toBe(true);
+    expect(native(entry)).toBeNull();
+    const last = entry.input.native.transcript.assistantMessages.at(-1);
+    const original = last.text;
+    last.text = `${line}\n\n${original}`;
+    expect(native(entry)).toMatchObject({ option: 'HOLD SCOPE', annotation: line });
+    last.text = `Note: ${line}\n\n${original}`;
+    expect(native(entry)).toBeNull();
+  });
+});

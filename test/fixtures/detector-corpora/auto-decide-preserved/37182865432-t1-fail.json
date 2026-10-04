@@ -13,10 +13,10 @@
  },
  "census_outcome": "failed",
  "census_error": "AUTO_DECIDE preserve test inconclusive: outcome=timeout",
- "expected": "pass",
- "justification": "Fixed false red: the model ran gstack-ceo-mode-handoff --auto (printing the AUTO_DECIDE line) before its provenance log, as Step 0E orders; the detector then required the handoff after the log. Repaired by d89dc32.",
+ "expected": "refuse",
+ "justification": "Genuine miss (integration decision 2026-10-04, lane S over lane D): the model ran gstack-ceo-mode-handoff --auto, but Claude Code collapses that Bash result, and its chat never began with the printed \"Auto-decided review mode → …\" line (\"I'm defaulting to HOLD SCOPE…\", then \"Mode decided: HOLD SCOPE\"), so the user never saw it. The helper's tool result locates the witness; it does not replace it. Same class as 37176837432 and 37179171083; the template now asks for the line verbatim (b8ec190).",
  "screen_expected": "refuse",
- "native_expected": "pass",
+ "native_expected": "refuse",
  "derived": "options.stateEvidence rebuilt from the session's gstack-question-log argument with source \"agent\" and ts = that call's tool-result timestamp (the bound question-log.jsonl itself is not archived)",
  "input": {
   "native": {
