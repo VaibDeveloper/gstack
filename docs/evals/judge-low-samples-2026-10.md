@@ -59,4 +59,8 @@ without the workflow it serves). They are recorded, not chased.
 | cross-skill greptile consistency | 4 | pass |
 | voice directive tone | all ≥ 4.33 | pass |
 
-The timing-field and `{user}` rationales no longer appear in these panels.
+The timing-field and `{user}` rationales no longer appear in these panels. After the
+ship and review wording was tightened to fit their parity size caps, the judges those
+files select ran once more on the final wording: review workflow 4.00 / 4.00 / 4.00,
+ship workflow 4.00 / 4.00 / 4.00, cross-skill consistency 4, voice directive tone ≥ 4.00
+(all pass).
