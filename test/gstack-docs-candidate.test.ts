@@ -93,8 +93,8 @@ describe('gstack-docs-candidate', () => {
     // ci-37198445662 gate-census-2: ship-docsync-completion/-store parents spent 45-78 s of model time
     // retyping hash maps, child output and records into several artifacts after the child returned.
     const gate = fs.readFileSync(path.resolve(import.meta.dir, '..', 'ship/sections/documentation.md.tmpl'), 'utf8').replace(/\s+/g, ' ');
-    expect(gate).toContain('rerun the Prepare `snapshot` command unchanged except `--out <audit-id>-post.json`; Step 16 runs `compare` on it. Never type hashes.');
-    expect(gate).toContain('cite saved files by path instead of copying candidate, compare or child output');
+    expect(gate).toContain('post-child hashes (rerun the Prepare `snapshot` with only `--out <audit-id>-post.json` changed; Step 16 `compare`s it; never type hashes)');
+    expect(gate).toContain('Save records once; cite files by path, never copying their content.');
     const { dir, root, record } = repo();
     const args = ['--audit-id', 'a1', '--mode', 'edit', '--base', 'main', '--docs', 'handbook'];
     expect(run(dir, 'snapshot', '--out', record, ...args).status).toBe(0);
