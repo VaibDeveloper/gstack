@@ -445,7 +445,7 @@ sections. Read a section in full before doing its step; do not work from memory.
 
 1. Run `git branch --show-current` to get the current branch.
 2. If on the base branch, output: **"Nothing to review — you're on the base branch or have no changes against it."** and stop.
-3. Run `git fetch origin <base> --quiet && DIFF_BASE=$(git merge-base origin/<base> HEAD) && git diff "$DIFF_BASE" --stat` to check if there's a diff. If no diff, output the same message and stop.
+3. Run `git fetch origin <base> --quiet && echo "BASE_REFRESH: fresh" || echo "BASE_REFRESH: stale $(git rev-parse --short origin/<base>)"`, then `DIFF_BASE=$(git merge-base origin/<base> HEAD) && git diff "$DIFF_BASE" --stat`. If no diff, output the same message and stop. `stale` is not an empty diff: continue; report `Base coverage: stale at <revision>`.
 
 ---
 
@@ -496,13 +496,7 @@ Each pass has one direction: collect findings in Steps 3–4.8, approve and appl
 fixes in Step 5, then choose repeat or final persistence in Step 5.8.
 Do not edit reviewed source until Step 5. All readers examine the same candidate.
 
-Fetch the base branch to avoid false positives from stale local state:
-
-```bash
-git fetch origin <base> --quiet
-```
-
-Compute the merge base, then diff the working tree against that point:
+Diff the working tree against the merge base:
 
 ```bash
 DIFF_BASE=$(git merge-base origin/<base> HEAD)
@@ -804,7 +798,7 @@ Never install, import cookies or bootstrap tests. Functional-only skips browser 
 
 **3. Run smoke and plan checks.**
 Follow the shared Probe loop for smoke checks and replays until the smoke limit.
-Then run required plan checks and revalidation, even after smoke expires, using the same procedure but no smoke guard; never reset the clock. Their checkpoints sit beside DEADLINE_FILE; they skip `DEADLINE_TOOL status DEADLINE_FILE` and use `--timeout-ms`, not `--deadline DEADLINE_FILE`. Post-expiry smoke rechecks are not-run.
+Then run required plan checks and revalidation, even after smoke expires, using the same procedure but no smoke guard; never reset the clock. Their checkpoints sit beside DEADLINE_FILE; they skip `DEADLINE_TOOL status DEADLINE_FILE` and use `--timeout-ms`, not `--deadline DEADLINE_FILE`. Post-expiry smoke rechecks are not-run, even in 4c.
 Use finite command timeouts, capped at the caller's remaining time if it has a deadline. /review sets none; only an invoker-supplied EARLIER_UTC counts.
 Await clock/guard results before acting. When the caller's deadline expires, mark unfinished checks not-run.
 

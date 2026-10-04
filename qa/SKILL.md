@@ -629,7 +629,7 @@ and unclear contracts never authorize repair.
 1. Why does existing coverage not already catch that? Prefer adding a row to an existing table-driven test or shared fixture over a near-duplicate.
 2. Does it need a production seam (export, flag, wrapper, injection hook) that no production caller needs? If yes, test at the real boundary instead.
 
-Value card: `Value: protects=<...>; fails_when=<...>; why_new=<...>; seam=none` (seam: `none` or its name); each field at most 160 UTF-8 bytes here (clamp to 157 plus `...`; JSON keeps full values). Put it in the 8e.5 record. A missing upstream card never blocks: derive it; ignore unknown fields.
+Value card: `Value: protects=<...>; fails_when=<...>; why_new=<...>; seam=none` (seam: `none` or its name); each field at most 160 UTF-8 bytes here (clamp to 157 plus `...`; written JSON keeps full values). Put it in the 8e.5 record. A missing upstream card never blocks: derive it; ignore unknown fields.
 
 Example: Value: protects=refundPayment rejects an empty reason; fails_when=the reason guard is removed or inverted; why_new=billing.test.ts covers processPayment only; seam=none
 Rejected (covered_elsewhere): "checkout renders"; checkout.e2e.ts:15 covers it, so extend that test.
@@ -717,13 +717,13 @@ about a worse score or regressed contract; blocked/inconclusive rechecks never v
 ## Phase 10: Report
 
 Write the Output Structure report locally and copy the same content to project context:
-
-**Project-scoped:** Write test outcome artifact for cross-session context:
 ```bash
 GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get SLUG 2>/dev/null) && mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG" && echo "PROJECT_DIR: $GSTACK_STATE_ROOT/projects/$SLUG"
 ```
 Write to `<PROJECT_DIR>/{user}-{branch}-test-outcome-{datetime}.md` (`PROJECT_DIR` printed above)
+from `git config user.name`, `git branch --show-current` (else `unknown-user`, `detached`;
+non-alphanumerics → `-`) and UTC `YYYYMMDDTHHMMSSZ`.
 
 **Per-issue additions:**
 - Fix Status: verified / best-effort / reverted / deferred
@@ -736,10 +736,8 @@ For browser coverage include the score delta. For functional coverage include
 passing/failing/blocked/not-run contracts, permanent regressions and remaining risks,
 never a score. Keep mixed results separate.
 
-**PR Summary:** Include one line:
-> "QA found N issues, fixed M, health score X → Y."
-
-For functional targets, use those contract outcomes instead of a score in the PR summary.
+**PR Summary:** one line, "QA found N issues, fixed M, health score X → Y."
+Functional targets: contract outcomes, not a score.
 
 ---
 
