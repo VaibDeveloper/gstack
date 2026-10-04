@@ -683,6 +683,14 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'codex-review': [ 'test/helpers/outside-voice-evidence.ts', 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'codex/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'],
 
   // Codex E2E (tests skills via Codex CLI + worktree)
+  // E6: live Codex multi-block install (setup --host codex into a fresh CODEX_HOME; /learn's later block)
+  'codex-multiblock-live': ['test/codex-e2e-multiblock-live.test.ts', 'test/helpers/codex-multiblock.ts', 'test/helpers/codex-eval.ts',
+    'test/helpers/codex-session-runner.ts', 'test/helpers/hermetic-env.ts', 'setup', 'bin/gstack-bun-version.sh', 'hosts/codex.ts', 'scripts/gen-skill-docs.ts',
+    'scripts/resolvers/runtime-root.ts', 'scripts/resolvers/preamble/**', 'scripts/resolvers/constants.ts', 'learn/**',
+    'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'bin/gstack-slug', 'test/helpers/e2e-gate.ts'],
+  // E5: design binary's default OpenAI models, live
+  'design-model-smoke': ['test/skill-e2e-design-model-smoke.test.ts', 'test/helpers/e2e-gate.ts', 'design/src/models.ts',
+    'design/src/receipted-fetch.ts', 'design/scripts/live-model-check.ts'],
   'codex-discover-skill':  [ 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'setup', 'bin/gstack-bun-version.sh','codex/**', 'scripts/gen-skill-docs.ts', 'test/helpers/codex-session-runner.ts', 'lib/worktree.ts', 'test/codex-e2e.test.ts',
     'test/helpers/codex-eval.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'
   ],
@@ -1363,6 +1371,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'codex-review': 'periodic',
 
   // Multi-AI — periodic (require external CLIs)
+  'codex-multiblock-live': 'periodic',
+  'design-model-smoke': 'periodic',
   'codex-discover-skill': 'periodic',
   'codex-review-findings': 'periodic',
   'outside-voice-codex-to-claude-code': 'periodic',
@@ -1742,6 +1752,8 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'safety-ship-stale-evidence': 'rule',
   'document-release': 'rule',
   'codex-review': 'rule',
+  'codex-multiblock-live': 'rule',
+  'design-model-smoke': 'rule',
   'codex-discover-skill': 'rule',
   'codex-review-findings': 'rule',
   'outside-voice-codex-to-claude-code': 'rule',
