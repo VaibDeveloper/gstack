@@ -30,7 +30,8 @@ test('adversarial outside failures retain the required native pass without dupli
       expect(output).toContain('GATE: MISSING COVERAGE');
       // C2: the gate names what missing coverage does instead of an unnamed "existing user decision flow".
       if (output.includes('Only a completed response with severity tags')) {
-        expect(output).toContain('→ GATE: MISSING COVERAGE: no fix question; say so and never report the review clean.');
+        expect(output).toContain('→ GATE: MISSING COVERAGE; no fix question.');
+        expect(outsideVoiceInvocation(ctx)).toContain('missing coverage is never clean/PASS');
         expect(output).not.toContain('preserve the existing user decision flow');
       }
       expect(outsideVoiceInvocation(ctx)).toContain("Use the caller's fallback; missing coverage is never clean/PASS.");
