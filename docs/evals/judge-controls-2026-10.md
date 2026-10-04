@@ -67,3 +67,17 @@ sample and rationale). Means are clarity / completeness / actionability.
   bundles of 70-160 KB these judges do not detect a missing deliverable or input
   step. A rubric proposal (anchor 4 and 5 to named deliverables and inputs) is a
   pre-registered EVAL_POLICY change for Garry, not part of this change.
+
+## Missing-step coverage moved to a free test
+
+Because the qa and review workflow judges passed the targeted defects above,
+missing-step coverage no longer rests on the judges.
+`test/workflow-required-steps.test.ts` checks that every step and phase heading
+of the judged workflow skills (qa, qa-only, review, ship, plan-ceo-review,
+plan-eng-review, setup-deploy) is still in the generated SKILL.md or section
+file, in order, and names the missing step when one is removed (the two control
+defects above are its negative cases). The pinned list,
+`test/fixtures/workflow-required-steps.json`, was derived from the templates'
+step headings; a new step heading must be added to it. The judges keep scoring
+clarity, completeness and actionability; the rubric revision stays a proposal
+for Garry (TODOS.md).
