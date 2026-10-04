@@ -78,7 +78,7 @@ import {
 } from './lib/shard-engine';
 import { PAID_TEST_GLOBS, isPaidTestFile } from '../test/helpers/paid-test-set';
 import { CASE_CI_EXCLUDE, CASE_QUARANTINE, EVAL_POLICY, PERIODIC_CI_EXCLUDE } from '../test/helpers/periodic-exclude-data';
-import { FILE_RETRY_BUDGETS, STRICT_RETRY_CASE_BUDGETS } from '../test/helpers/eval-budgets';
+import { FILE_RETRY_BUDGETS, STALL_WINDOW_MS, STRICT_RETRY_CASE_BUDGETS } from '../test/helpers/eval-budgets';
 import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
@@ -769,7 +769,7 @@ export function classifyTrialShard(
       ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
       ...(Number.isInteger(failedRecord?.timeout_at_turn) ? { timeout_at_turn: failedRecord.timeout_at_turn } : {}),
       ...(sanitizeTrialError(raw) ? { error: sanitizeTrialError(raw) } : {}),
-      ...trialFailureFields({ failure_class: cls, exit_reason: failedRecord?.exit_reason, error: raw, sessions: evidence.sessions, record: failedRecord }) };
+      ...trialFailureFields({ failure_class: cls, exit_reason: failedRecord?.exit_reason, error: raw, sessions: evidence.sessions, record: failedRecord }, STALL_WINDOW_MS) };
   };
   if (outcome.runnerError !== undefined) return { ...base, harness: `runner error: ${sanitizeTrialError(outcome.runnerError) ?? 'unknown'}` };
   if (outcome.status === 'never-started') return { ...base, harness: 'never started' };

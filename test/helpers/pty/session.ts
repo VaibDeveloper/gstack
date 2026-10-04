@@ -33,6 +33,11 @@ export const realPtyDriver: PtyDriver = {
   sleep: ms => Bun.sleep(ms),
 };
 
+/** The last idle turn's error panel, if the session can show its text; diagnostics never throw. */
+export function safePanelEnd(session: Pick<ClaudePtySession, 'visibleText'>): ReturnType<typeof idlePanelEnd> {
+  try { return idlePanelEnd(session.visibleText()); } catch { return null; }
+}
+
 /** One poll step: finish with a result, keep polling, or end the loop as a timeout. */
 export type PtyStep<R> = { done: R } | 'continue' | 'break';
 
@@ -92,7 +97,7 @@ export async function runPtySession<R>(plan: PtySessionPlan<R>): Promise<R> {
   } finally {
     appendSessionLedger({ key: sessionKey('pty', undefined), runner: 'pty', started_at: startedAt,
       budget_ms: plan.budgetMs ?? plan.launch.timeoutMs ?? 240_000, elapsed_ms: plan.driver.monotonic() - started,
-      end, ...idlePanelEnd(session.visibleText()), billed: false });
+      end, ...safePanelEnd(session), billed: false });
     try {
       try { plan.beforeClose?.(session, failure); }
       catch (error) { if (!failure) { failure = { error }; throw error; } }

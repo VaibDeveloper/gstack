@@ -28,7 +28,7 @@ import {
 } from './shard-engine';
 import { PAID_TEST_GLOBS, isPaidTestFile } from '../../test/helpers/paid-test-set';
 import { CASE_CI_EXCLUDE, CASE_QUARANTINE, EVAL_POLICY, PERIODIC_CI_EXCLUDE } from '../../test/helpers/periodic-exclude-data';
-import { FILE_RETRY_BUDGETS, STRICT_RETRY_CASE_BUDGETS } from '../../test/helpers/eval-budgets';
+import { FILE_RETRY_BUDGETS, STALL_WINDOW_MS, STRICT_RETRY_CASE_BUDGETS } from '../../test/helpers/eval-budgets';
 import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
@@ -305,7 +305,7 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
         const error = sanitizeTrialError(failedRecord?.error ?? failed?.message);
         const sessions = caseSessions(ledger, id, byCase.size === 1);
         const diagnosis = failed && failureClass ? trialFailureFields({ failure_class: failureClass, exit_reason: failedRecord?.exit_reason,
-          error: failedRecord?.error ?? failed.message, sessions, record: failedRecord }) : undefined;
+          error: failedRecord?.error ?? failed.message, sessions, record: failedRecord }, STALL_WINDOW_MS) : undefined;
         if (failed) census.failedShards.add(key);
         if (caseOutcome === 'skipped') {
           bump(reasons, RUNTIME_SKIP_REASON);

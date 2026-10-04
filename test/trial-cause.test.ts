@@ -15,6 +15,7 @@ import { runPlanSkillObservation } from './helpers/claude-pty-runner';
 import { createFakePtyDriver } from './helpers/pty/fake-session';
 import { runAgentSdkTest, __resetSemaphoreForTests, type QueryProvider } from './helpers/agent-sdk-runner';
 import { runRecordedCodexEval } from './helpers/codex-eval';
+import { classifyTrialShard } from '../scripts/test-paid-shards';
 
 const FIXTURES = path.join(import.meta.dir, 'fixtures', 'trial-cause');
 const thinking = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'thinking-captures-37198445662.json'), 'utf8'));
@@ -49,7 +50,7 @@ function observe(events: Timed[], endAt: number, hooks: { permissionAt?: number 
 }
 
 const timedOutSession = (liveness: SessionCauseFacts['liveness']): SessionCauseFacts => ({ key: 'claude-p:x#1', end: 'session_timeout', elapsed_ms: 600_000, budget_ms: 600_000, liveness });
-const causeOf = (facts: Partial<FailureCauseFacts>) => failureCauseOf({ failure_class: 'assertion', ...facts });
+const causeOf = (facts: Partial<FailureCauseFacts>) => failureCauseOf({ failure_class: 'assertion', ...facts }, STALL_WINDOW_MS);
 
 describe('failureCauseOf precedence', () => {
   const stalled = { partial: true, max_request_silence_ms: STALL_WINDOW_MS + 10_000, silence_started_ms: 40_000, silence_after: 'thinking_delta' };
@@ -167,6 +168,10 @@ describe('replays of stored census evidence', () => {
     expect(liveness.partial).toBe(false);
     expect(liveness.max_request_silence_ms).toBe(0);
     expect(causeOf({ failure_class: r.failure_class, exit_reason: r.exit_reason, error: r.error }).cause).toBe('session_timeout');
+    // Through the record builder the trial shard uses: failure_class stays timeout, the cause is the session timeout.
+    expect(classifyTrialShard({ status: 'failed', executedTests: 1, skippedTests: 0, elapsedMs: r.duration_ms }, r.case, 1,
+      { kind: 'rule', panel: { n: 1, k: 1 }, quarantined: false }, { records: [{ passed: false, exit_reason: r.exit_reason, error: r.error }], contract: null }))
+      .toMatchObject({ outcome: 'failed', failure_class: 'timeout', failure_cause: 'session_timeout', error: 'Error: Claude Code process aborted by user' });
     expect(causeOf({ failure_class: r.failure_class, exit_reason: r.exit_reason, error: r.error,
       sessions: [{ key: 'agent-sdk:x#1', end: 'session_timeout', elapsed_ms: r.duration_ms, budget_ms: 300_000, liveness }] }).cause).toBe('session_timeout');
   });
@@ -232,7 +237,7 @@ describe('one fixture per runner writes the ledger the classifier reads', () => 
       { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta' } } }]);
     expect(streaming.rows[0]!.liveness).toMatchObject({ partial: true, silence_after: 'thinking_delta' });
     expect(failureCauseOf({ failure_class: 'timeout', sessions: streaming.rows }, 300).cause).toBe('provider_stall');
-    expect(failureCauseOf({ failure_class: 'timeout', sessions: streaming.rows }).cause).toBe('session_timeout');
+    expect(failureCauseOf({ failure_class: 'timeout', sessions: streaming.rows }, STALL_WINDOW_MS).cause).toBe('session_timeout');
   });
 
   test('Codex: an expired budget is a session timeout', async () => {

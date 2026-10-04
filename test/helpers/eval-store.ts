@@ -14,7 +14,6 @@ import * as os from 'os';
 import { spawnSync } from 'child_process';
 import { isManualReviewEntry } from './cookie-workflow-manual-review';
 import type { ManualJudgeReview } from './cookie-workflow-manual-review';
-import { STALL_WINDOW_MS } from './eval-budgets';
 
 // v2: EvalTestEntry.harvest gains optional {insertions, deletions, net} and
 // may be explicitly null (arm-benchmark harvest-failure taxonomy). Readers
@@ -256,8 +255,10 @@ const oneLine = (text: string | undefined, max: number): string | undefined => {
  * A provider stall needs a session that streamed partial messages, did not
  * complete, and shows STALL_WINDOW_MS of silence with a request in flight and
  * nothing outstanding; sessions without partial messages are never stalls.
+ * The window is STALL_WINDOW_MS (eval-budgets.ts), passed in so this stays
+ * dependency-free (tests that mock eval-budgets still load eval-store).
  */
-export function failureCauseOf(facts: FailureCauseFacts, stallWindowMs = STALL_WINDOW_MS): { cause: TrialFailureCause; evidence?: string } {
+export function failureCauseOf(facts: FailureCauseFacts, stallWindowMs: number): { cause: TrialFailureCause; evidence?: string } {
   const sessions = facts.sessions ?? [];
   const ended = (end: string) => sessions.find((s) => s.end === end);
   const out = (cause: TrialFailureCause, evidence?: string) => {
@@ -361,10 +362,10 @@ export function trialCostKnown(records: ReadonlyArray<{ cost_known?: unknown }>,
 }
 
 /** Cause, cause evidence and detail of one failed trial, for both record builders. */
-export function trialFailureFields(input: FailureCauseFacts & { record?: { judge_scores?: unknown; judge_reasoning?: unknown } }): {
+export function trialFailureFields(input: FailureCauseFacts & { record?: { judge_scores?: unknown; judge_reasoning?: unknown } }, stallWindowMs: number): {
   failure_cause: TrialFailureCause; failure_cause_evidence?: string; failure_detail?: TrialFailureDetail;
 } {
-  const { cause, evidence } = failureCauseOf(input);
+  const { cause, evidence } = failureCauseOf(input, stallWindowMs);
   const detail = failureDetailOf(input.error, input.record);
   return { failure_cause: cause, ...(evidence ? { failure_cause_evidence: evidence } : {}), ...(detail ? { failure_detail: detail } : {}) };
 }
