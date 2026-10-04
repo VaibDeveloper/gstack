@@ -64,14 +64,39 @@ import { DEFAULT_JOBS, type PaidCaseSelection, type PaidTier, ROOT, type RunShar
 
 // ─── Local diagnosis: one case through the CI panel runner (A9) ────────────
 
-/** The one paid file that statically registers `id`, else a thrown reason. */
+/** How --case runs exactly one case: trials selected by its Bun test name, or its whole file when that file registers no other case. */
+export interface CaseSelection { file: string; mode: 'name' | 'file'; reason: string }
+
+const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The paid file that registers `id` and how a trial selects it. A file whose
+ * registration is complete wins over one that also lists the id; a test
+ * registered literally under the id (or its CASE_TEST_NAMES label) is
+ * selected by name; a loop that registers ids at runtime is selected by the
+ * id it names its test; a file registering only this case runs whole (its
+ * test names are not the id). Anything else throws before any process starts.
+ */
+export function caseSelection(id: string, rootDir = ROOT, discovered = collectPaidTestFiles(rootDir)): CaseSelection {
+  const files = discovered.map(file => {
+    const source = fs.readFileSync(path.join(rootDir, file), 'utf8');
+    return { file, source, ...fileCaseRegistration(file, source) };
+  }).filter(f => f.registered.includes(id));
+  const owners = files.filter(f => f.known).length ? files.filter(f => f.known) : files;
+  if (owners.length !== 1) throw new Error(`--case ${id}: ${owners.length ? `registered by ${owners.map(f => f.file).join(', ')}` : 'no paid file registers it'}; it needs exactly one`);
+  const owner = owners[0]!;
+  const name = escapeRe(CASE_TEST_NAMES[id] ?? id);
+  if (new RegExp(`\\b(?:test|it|test\\.\\w+|test(?:Concurrent)?IfSelected)\\s*\\(\\s*(['"\`])${name}\\1|testName\\s*:\\s*(['"\`])${name}\\2`).test(owner.source)) {
+    return { file: owner.file, mode: 'name', reason: `its Bun test is named ${CASE_TEST_NAMES[id] ?? id}` };
+  }
+  if (owner.registered.length === 1) return { file: owner.file, mode: 'file', reason: 'the whole file (it registers no other case)' };
+  if (owner.computed) return { file: owner.file, mode: 'name', reason: `its loop names the Bun test ${id} at runtime` };
+  throw new Error(`--case ${id}: ${owner.file} registers several cases and none of its tests is named ${id}; add its test name to CASE_TEST_NAMES`);
+}
+
+/** The one paid file that registers `id`, else a thrown reason. */
 export function caseFile(id: string, rootDir = ROOT, discovered = collectPaidTestFiles(rootDir)): string {
-  const owners = discovered.filter(file => {
-    const { registered, known } = fileCaseRegistration(file, fs.readFileSync(path.join(rootDir, file), 'utf8'));
-    return known && registered.includes(id);
-  });
-  if (owners.length !== 1) throw new Error(`--case ${id}: ${owners.length ? `registered by ${owners.join(', ')}` : 'no paid file statically registers it'}; it needs exactly one`);
-  return owners[0]!;
+  return caseSelection(id, rootDir, discovered).file;
 }
 
 /**
@@ -87,25 +112,34 @@ export async function runCaseDiagnosis(id: string, options: {
 } = {}): Promise<PanelVerdict> {
   const rootDir = options.rootDir ?? ROOT;
   const log = options.log ?? ((line: string) => console.log(line));
-  const file = options.file ?? caseFile(id, rootDir);
-  const testName = CASE_TEST_NAMES[id] ?? id;
-  if (!options.commandFor && !fs.readFileSync(path.join(rootDir, file), 'utf8').includes(testName)) {
-    throw new Error(`--case ${id}: ${file} has no literal Bun test named "${testName}", so a trial could not select it. `
-      + 'Run the whole file (bun test <file> with EVALS=1) or add its literal name to CASE_TEST_NAMES.');
-  }
+  const selection = options.file ? { file: options.file, mode: 'name' as const } : caseSelection(id, rootDir);
+  const file = selection.file;
   const policy = caseTrialPlan(id);
   const n = options.trials ?? policy.panel.n;
   const plan: CaseTrialPlan = { ...policy, panel: { n, k: policy.panel.k === policy.panel.n ? n : Math.min(policy.panel.k, n) } };
   const keys = Array.from({ length: n }, (_, i) => trialShardKey(file, id, i + 1));
   const tier = E2E_TIERS[id] as PaidTier;
   log(`[test:paid] --case ${id}: ${n} trial(s) of ${file} (kind ${plan.kind}, PASS at ${plan.panel.k}/${n}${plan.quarantined ? ', quarantined' : ''}), tier=${tier}`);
-  const summary = await runPaidShards(keys.map(key => [key]), {
-    jobs: Math.min(options.jobs ?? DEFAULT_JOBS, n), withinShardConcurrency: options.withinShardConcurrency, timeoutMs: options.timeoutMs,
-    rootDir, log, commandFor: options.commandFor, evalDirBase: options.evalDirBase,
-    trials: Object.fromEntries(keys.map(key => [key, plan])),
+  const shardOptions = { withinShardConcurrency: options.withinShardConcurrency, timeoutMs: options.timeoutMs, rootDir, log, commandFor: options.commandFor,
     env: { ...(options.env ?? process.env), EVALS: '1', EVALS_TIER: tier, EVALS_PREFLIGHT_OK: '1', EVALS_ALL: '1',
-      ...paidSelectionEnv('full', { e2e: [id], judges: [] }, `--case ${id}`) },
-  });
+      ...paidSelectionEnv('full', { e2e: [id], judges: [] }, `--case ${id}`) } };
+  if (selection.mode === 'file') {
+    // The whole file is the case: one file shard per trial, each with its own eval dir, judged by shard status as CI does.
+    const fileTrials = [];
+    for (let trial = 1; trial <= n; trial++) {
+      const [outcome] = (await runPaidShards([[file]], { ...shardOptions, jobs: 1,
+        ...(options.evalDirBase ? { evalDirBase: path.join(options.evalDirBase, `t${trial}`) } : {}) })).outcomes;
+      if (!outcome || outcome.runnerError !== undefined || isAllSkippedPass(outcome) || !['passed', 'failed', 'timed-out'].includes(outcome.status)) continue;
+      fileTrials.push({ trial, outcome: outcome.status === 'passed' ? 'passed' as const : 'failed' as const,
+        ...(outcome.status === 'passed' ? {} : { failure_class: outcome.status === 'timed-out' ? 'timeout' as const : 'assertion' as const }) });
+    }
+    const verdict = panelVerdict({ case: id, kind: plan.kind, panel: plan.panel, trials: fileTrials, quarantined: plan.quarantined });
+    log(formatPanelLine({ ...verdict, file, slices: {} }, tier));
+    return verdict;
+  }
+  const summary = await runPaidShards(keys.map(key => [key]), { ...shardOptions,
+    jobs: Math.min(options.jobs ?? DEFAULT_JOBS, n), evalDirBase: options.evalDirBase,
+    trials: Object.fromEntries(keys.map(key => [key, plan])) });
   const trials = summary.outcomes.flatMap(outcome => outcome.trial && outcome.trial.outcome !== null ? [{
     trial: outcome.trial.trial, outcome: outcome.trial.outcome, ...(outcome.trial.failure_class ? { failure_class: outcome.trial.failure_class } : {}),
     ...(outcome.trial.exit_reason ? { exit_reason: outcome.trial.exit_reason } : {}), ...(outcome.trial.error ? { error: outcome.trial.error } : {}),

@@ -109,7 +109,7 @@ export { PERIODIC_CI_EXCLUDE };
 
 import { scopeCodexAccess, shardFile, shardCaseId, shardTrial, trialShardKey, type CaseTrialPlan, caseTrialPlan, excludedCasesNamePattern, caseTestNamePattern, expandCaseShards, expandTrialShards, partitionCaseExclusions } from './lib/paid-cases';
 import { retriesForFiles, trialPanelKey, sliceExecutionOrder, buildRunManifest, parseRunManifest, type SliceResult, sliceExitCode, guardTrialRecords, formatSlicePlan, formatCapacityPreflight } from './lib/paid-plan';
-import { caseFile, runCaseDiagnosis, formatPanelLine, runPaidReport } from './lib/paid-report';
+import { caseSelection, runCaseDiagnosis, formatPanelLine, runPaidReport } from './lib/paid-report';
 export * from './lib/paid-cases';
 export * from './lib/paid-plan';
 export * from './lib/paid-report';
@@ -1497,11 +1497,11 @@ async function main(): Promise<number> {
   if (options.reportDir) return runPaidReport(options.reportDir, { writeDurations: options.writeDurations });
 
   if (options.caseId && options.listOnly) {
-    const file = caseFile(options.caseId);
+    const { file, mode, reason } = caseSelection(options.caseId);
     const plan = caseTrialPlan(options.caseId);
     const n = options.trials ?? plan.panel.n;
-    console.log(`[test:paid] --case ${options.caseId}: ${n} trial(s) of ${file} (kind ${plan.kind}), list only`);
-    for (let trial = 1; trial <= n; trial++) console.log(`  ${trialShardKey(file, options.caseId, trial)}`);
+    console.log(`[test:paid] --case ${options.caseId}: ${n} trial(s) of ${file} (kind ${plan.kind}), selects ${reason}, list only`);
+    for (let trial = 1; trial <= n; trial++) console.log(`  ${mode === 'file' ? `${file} (trial ${trial})` : trialShardKey(file, options.caseId, trial)}`);
     return 0;
   }
   if (options.caseId) {

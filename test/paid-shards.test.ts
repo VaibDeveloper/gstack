@@ -13,6 +13,7 @@ import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
 import { E2E_TIERS, E2E_TOUCHFILES } from './helpers/touchfiles';
 
 const ROOT = path.resolve(import.meta.dir, '..');
@@ -56,6 +57,7 @@ import {
   excludedCasesNamePattern,
   runCaseDiagnosis,
   caseFile,
+  caseSelection,
   parseCliOptions,
   loadPaidTestDurations,
   shardDurationViolations,
@@ -775,6 +777,49 @@ console.log("Ran 1 tests across 1 files. [1ms]"); process.exit(${fail ? 1 : 0});
     expect(() => parseCliOptions(['--case', 'no-such-case'], {})).toThrow('live E2E case id');
     expect(() => parseCliOptions(['--case', 'review-sql-injection', '--report', '/tmp/r'], {})).toThrow('local diagnosis');
     expect(caseFile('review-sql-injection')).toBe('test/skill-e2e-review.test.ts');
+  });
+
+  test('B4: every registered E2E case resolves to exactly itself, loop-registered cases included', () => {
+    const unresolved: string[] = [];
+    for (const id of Object.keys(E2E_TIERS)) {
+      let selection: ReturnType<typeof caseSelection>;
+      try { selection = caseSelection(id); } catch (error) { unresolved.push(`${id}: ${(error as Error).message}`); continue; }
+      const { registered, computed } = fileCaseRegistration(selection.file, fs.readFileSync(path.join(ROOT, selection.file), 'utf8'));
+      expect(registered, id).toContain(id);
+      if (selection.mode === 'file') expect(registered, id).toEqual([id]);
+      else expect(computed || fs.readFileSync(path.join(ROOT, selection.file), 'utf8').includes(CASE_TEST_NAMES[id] ?? id), id).toBe(true);
+    }
+    // Fifteen carve files each register this one case; CI runs each file as its own shard.
+    expect(unresolved).toEqual([expect.stringMatching(/^carve-section-loading: --case carve-section-loading: registered by test\/carve-section-loading-/)]);
+    expect(caseSelection('plan-mode-no-op')).toEqual({ file: 'test/skill-e2e-plan-mode-no-op.test.ts', mode: 'file', reason: 'the whole file (it registers no other case)' });
+    expect(caseSelection('review-coverage-audit')).toMatchObject({ file: 'test/skill-e2e-coverage-audit.test.ts', mode: 'name' });
+    expect(caseSelection('plan-eng-multi-finding-batching').file).toBe('test/skill-e2e-plan-eng-multi-finding-batching.test.ts');
+    expect(caseSelection('review-sql-injection')).toMatchObject({ file: 'test/skill-e2e-review.test.ts', mode: 'name' });
+  });
+
+  test('B4: --list prints the selection; an unknown id exits non-zero before any process starts', () => {
+    const run = (args: string[]) => spawnSync(process.execPath, [path.join(ROOT, 'scripts/test-paid-shards.ts'), ...args], { encoding: 'utf8', timeout: 60_000, cwd: ROOT });
+    const listed = run(['--tier', 'gate', '--case', 'plan-mode-no-op', '--list']);
+    expect(listed.status, listed.stderr).toBe(0);
+    expect(listed.stdout).toContain('--case plan-mode-no-op: 1 trial(s) of test/skill-e2e-plan-mode-no-op.test.ts (kind rule), selects the whole file (it registers no other case), list only');
+    const unknown = run(['--tier', 'gate', '--case', 'no-such-case']);
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toContain('--case needs a live E2E case id. Received: no-such-case');
+    expect(unknown.stdout).not.toContain('shard');
+  });
+
+  test('B4: a whole-file case runs one file shard per trial and judges each by shard status', async () => {
+    const evalDirBase = fs.mkdtempSync(path.join(os.tmpdir(), 'case-file-diagnosis-'));
+    const lines: string[] = [];
+    let call = 0;
+    try {
+      const verdict = await runCaseDiagnosis('plan-mode-no-op', { trials: 2, evalDirBase, log: line => lines.push(line),
+        commandFor: files => { call++; expect(files).toEqual(['test/skill-e2e-plan-mode-no-op.test.ts']);
+          return { command: process.execPath, args: ['-e', `console.log("Ran 5 tests across 1 files. [1ms]"); process.exit(${call === 2 ? 1 : 0});`] }; } });
+      expect(call).toBe(2);
+      expect(verdict).toMatchObject({ case: 'plan-mode-no-op', kind: 'rule', panel: { n: 2, k: 2 }, passed: 1, status: 'FAIL' });
+      expect(lines.join('\n')).toContain('FAIL 1/2 (✓✗)');
+    } finally { fs.rmSync(evalDirBase, { recursive: true, force: true }); }
   });
 
   test('--case runs the CI panel runner and prints its panelVerdict', async () => {
