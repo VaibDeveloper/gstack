@@ -30,6 +30,14 @@ Deferred from the approved reliability follow-ups plan (docs/designs/RELIABILITY
   diagnostic run on the pre-verbatim wording paraphrased it; one on the
   verbatim wording passed. Watch the next censuses; a red here is a template
   miss, not a detector false red. **Effort:** S. **Priority:** P2.
+- **Named red: ship-docsync-late-result on PR run 37237194905** — the model
+  wrote its report to a mistyped shard root (`…-3GanyY` for `…-3GanyU`) at
+  call 20, disclosed it, then wrote the real report at the right path. The
+  authority detector is correct (the file was created outside the fixture);
+  `test/docsync-authority.test.ts` replays the capture. If any docsync case
+  writes to a near-miss shard path again, give the model a short stable
+  fixture root (env var or fixed short symlink) instead of random tokens to
+  copy, without loosening the authority check. **Effort:** S. **Priority:** P2.
 - **PTY sessions are cost-unknown** — `test/helpers/pricing.ts` excludes
   cache-write charges, so PTY trials stay `cost_known: false`. Price them from
   native transcript usage once pricing covers cache writes. **Effort:** S. **Priority:** P3.
