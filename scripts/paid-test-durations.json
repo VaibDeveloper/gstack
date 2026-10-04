@@ -122,6 +122,7 @@
       "test/carve-section-loading-review.test.ts": 247902,
       "test/carve-section-loading-setup-gbrain.test.ts": 80994,
       "test/carve-section-loading-spec.test.ts": 176639,
+      "test/codex-e2e-multiblock-live.test.ts": 180000,
       "test/codex-e2e-recommendation-substance.test.ts": 17984,
       "test/codex-e2e-shared-libs.test.ts": 53442,
       "test/codex-e2e-sol-scope.test.ts": 37063,
