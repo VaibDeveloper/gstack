@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # gstack-bun-version.sh — the one source for the Bun versions gstack needs.
 # Sourced, never executed: ./setup refuses or warns from it before writing
-# anything, and bin/gstack-session-update reads the INCOMING release's copy
-# (git show) before advancing a live checkout. test/bun-version-drift.test.ts
+# anything, and bin/gstack-session-update and /gstack-upgrade read the
+# INCOMING release's floor (gstack_bun_incoming_hold) before advancing a
+# live checkout. test/bun-version-drift.test.ts
 # keeps it equal to package.json engines.bun, every CI pin, setup's install
 # hint and README. Bash 3.2 builtins only.
 #
@@ -55,4 +56,20 @@ gstack_bun_status() {
   elif _gstack_bun_below "$1" "$GSTACK_BUN_TESTED"; then echo untested
   else echo ok
   fi
+}
+
+# gstack_bun_incoming_hold <git-dir> <rev> — the pre-advance check shared by
+# the auto-updater and /gstack-upgrade. Reads the floor from <rev>'s copy of
+# this file and checks the `bun` setup will run (first on PATH). Below that
+# floor it prints the held reason and returns 0; otherwise it prints nothing
+# and returns 1 (no bun, no floor in <rev>, or an unparseable version, which
+# setup only warns on). The comparison rule is this release's.
+gstack_bun_incoming_hold() {
+  command -v bun >/dev/null 2>&1 || return 1
+  _gb_floor=$(git -C "$1" show "$2:bin/gstack-bun-version.sh" 2>/dev/null | sed -n 's/^GSTACK_BUN_FLOOR="\([0-9A-Za-z.+-]*\)".*/\1/p' | head -1)
+  [ -n "$_gb_floor" ] || return 1
+  _gb_found=$(bun --version 2>/dev/null | head -1)
+  [ "$(gstack_bun_status "$_gb_found" "$_gb_floor")" = too-old ] || return 1
+  _gb_ver=$(git -C "$1" show "$2:VERSION" 2>/dev/null | head -1)
+  echo "bun-too-old: found Bun $_gb_found at $(command -v bun); gstack ${_gb_ver:-update} needs $_gb_floor or newer"
 }

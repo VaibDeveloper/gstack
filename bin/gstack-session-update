@@ -192,13 +192,8 @@ fi
   if [ "$PULL_EXIT" -eq 0 ]; then
     INCOMING=$(git -C "$GSTACK_DIR" rev-parse --verify '@{upstream}^{commit}' 2>"${PULL_ERR_FILE:-/dev/null}") || PULL_EXIT=1
   fi
-  if [ "$PULL_EXIT" -eq 0 ] && [ "$INCOMING" != "$OLD_HEAD" ] && command -v bun >/dev/null 2>&1; then
-    _IN_FLOOR=$(git -C "$GSTACK_DIR" show "$INCOMING:bin/gstack-bun-version.sh" 2>/dev/null | sed -n 's/^GSTACK_BUN_FLOOR="\([0-9A-Za-z.+-]*\)".*/\1/p' | head -1)
-    _BUN_FOUND=$(bun --version 2>/dev/null | head -1)
-    if [ -n "$_IN_FLOOR" ] && [ "$(gstack_bun_status "$_BUN_FOUND" "$_IN_FLOOR" 2>/dev/null)" = too-old ]; then
-      _IN_VERSION=$(git -C "$GSTACK_DIR" show "$INCOMING:VERSION" 2>/dev/null | head -1)
-      BUN_HELD="bun-too-old: found Bun $_BUN_FOUND at $(command -v bun); gstack ${_IN_VERSION:-update} needs $_IN_FLOOR or newer"
-    fi
+  if [ "$PULL_EXIT" -eq 0 ] && [ "$INCOMING" != "$OLD_HEAD" ]; then
+    BUN_HELD=$(gstack_bun_incoming_hold "$GSTACK_DIR" "$INCOMING" 2>/dev/null) || BUN_HELD=""
   fi
   if [ "$PULL_EXIT" -eq 0 ] && [ -z "$BUN_HELD" ]; then
     git -C "$GSTACK_DIR" merge --ff-only --autostash -q "$INCOMING" >/dev/null 2>"${PULL_ERR_FILE:-/dev/null}"
