@@ -141,6 +141,7 @@
       "test/skill-e2e-coverage-audit.test.ts": 1000,
       "test/skill-e2e-cso.test.ts": 253498,
       "test/skill-e2e-deploy.test.ts": 1000,
+      "test/skill-e2e-design-model-smoke.test.ts": 90000,
       "test/skill-e2e-design.test.ts": 817000,
       "test/skill-e2e-design.test.ts#design-consultation-core": 159257,
       "test/skill-e2e-design.test.ts#design-consultation-existing": 175607,
