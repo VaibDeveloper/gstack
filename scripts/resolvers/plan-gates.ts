@@ -472,6 +472,7 @@ The plan completion results augment the existing Scope Drift Detection. If a pla
   - Options: A) Stop this review for implementation, B) Continue this review with P1 TODOs, C) Record the items as intentionally dropped
   - A ends this invocation before code review or implementation. List the missing work; after implementation, start a fresh /review.
   - B queues the approved TODO changes for Step 5, not this read-only audit. B/C continue to the final Scope Check and Step 2. None of these choices authorizes shipping or waives required verification.
+  - Spawned or non-interactive runs ask nothing: report REQUIREMENTS MISSING with the items and continue, writing no TODOs and dropping nothing.
 
 This is **INFORMATIONAL** unless HIGH-impact plan-file discrepancies are found (then it gates via AskUserQuestion).
 Discrepancies derived only from fallback sources (commit messages, TODOS.md, PR description) never trigger

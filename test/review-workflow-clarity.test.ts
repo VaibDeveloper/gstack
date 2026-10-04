@@ -317,6 +317,9 @@ test('review finalization ownership: the plan audit retains its high-impact gate
   expect(flatAudit).toMatch(/not this read-only audit/i);
   expect(flatAudit).toContain('B/C continue to the final Scope Check and Step 2');
   expect(flatAudit).toMatch(/none of these choices authorizes shipping or waives required verification/i);
+  // C2: a spawned or non-interactive review cannot answer the question; its default writes and drops nothing.
+  expect(flatAudit).toContain('Spawned or non-interactive runs ask nothing: report REQUIREMENTS MISSING with the items and continue, writing no TODOs and dropping nothing.');
+  expect(flatAudit.indexOf('Spawned or non-interactive runs ask nothing')).toBeLessThan(flatAudit.indexOf('When continuing after the audit'));
 });
 
 test('review scope notes remain provisional until the plan section emits the only final scope check', () => {
