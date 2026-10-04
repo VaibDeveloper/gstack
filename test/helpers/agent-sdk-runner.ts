@@ -357,7 +357,7 @@ export async function runAgentSdkTest(
       appendSessionLedger({ key: sessionKey('agent-sdk', opts.testName), ...(opts.testName ? { test_name: opts.testName } : {}), runner: 'agent-sdk',
         started_at: startedAt, ...(budget !== undefined ? { budget_ms: budget } : {}), elapsed_ms: elapsed, end,
         ...(end === 'session_timeout' ? { evidence: `armed ${budget}ms session timeout fired` } : structured && !aborted ? { evidence: structured.evidence } : {}),
-        liveness: observer.summary(performance.now()) });
+        liveness: observer.summary(performance.now()), billed: observer.billed });
     };
     const controller = new AbortController();
     let activeQuery: ReturnType<QueryProvider> | undefined;

@@ -92,7 +92,7 @@ export async function runPtySession<R>(plan: PtySessionPlan<R>): Promise<R> {
   } finally {
     appendSessionLedger({ key: sessionKey('pty', undefined), runner: 'pty', started_at: startedAt,
       budget_ms: plan.budgetMs ?? plan.launch.timeoutMs ?? 240_000, elapsed_ms: plan.driver.monotonic() - started,
-      end, ...idlePanelEnd(session.visibleText()) });
+      end, ...idlePanelEnd(session.visibleText()), billed: false });
     try {
       try { plan.beforeClose?.(session, failure); }
       catch (error) { if (!failure) { failure = { error }; throw error; } }

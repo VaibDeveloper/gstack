@@ -66,6 +66,8 @@ export interface EvalTestEntry {
   passed: boolean;
   duration_ms: number;
   cost_usd: number;
+  /** False when the harness captured no billing, so cost_usd 0 means unknown. Absent means known. */
+  cost_known?: boolean;
   /** Absent in older records means executed; reuse is never a new model run. */
   execution?: 'executed' | 'reused';
   reused_from?: { input_key: string; run_id: string; revision: string; completed_at: string };
@@ -345,6 +347,17 @@ export function trialSessions(rows: ReadonlyArray<SessionCauseFacts & { runner?:
     key: r.key!.slice(0, 160), runner: String(r.runner ?? 'unknown').slice(0, 20), elapsed_ms: r.elapsed_ms!,
     ...(Number.isFinite(r.budget_ms) ? { budget_ms: r.budget_ms } : {}), end: r.end.slice(0, 20) }));
   return sessions.length ? { sessions } : {};
+}
+
+/**
+ * Whether a trial's cost_usd is its billed cost: every eval record and ledger
+ * session captured billing. A trial with no eval record (a JUnit-only PTY
+ * case) or a session that billed nothing (PTY, Codex, an SDK capture without
+ * a terminal result) is unknown. Returns the field only when unknown, so a
+ * known cost keeps today's record shape (absent means known).
+ */
+export function trialCostKnown(records: ReadonlyArray<{ cost_known?: unknown }>, sessions: ReadonlyArray<{ billed?: boolean }> = []): { cost_known?: false } {
+  return records.length > 0 && records.every((r) => r.cost_known !== false) && sessions.every((s) => s.billed !== false) ? {} : { cost_known: false };
 }
 
 /** Cause, cause evidence and detail of one failed trial, for both record builders. */

@@ -46,6 +46,8 @@ export interface SessionLedgerRow {
   end: SessionEnd;
   evidence?: string;
   liveness?: LivenessSummary;
+  /** Whether the runner captured this session's billing (a terminal result with total_cost_usd). */
+  billed?: boolean;
 }
 
 /** One line, control characters stripped, mentions neutralized, capped. */
@@ -118,6 +120,8 @@ export class SessionObserver {
   private refusal?: string;
   private apiError?: string;
   private phraseRefusal?: string;
+  /** A terminal result carried total_cost_usd. */
+  billed = false;
 
   constructor(private readonly startedAt: number) { this.lastAt = startedAt; }
 
@@ -167,6 +171,7 @@ export class SessionObserver {
       if (subtype === 'model_refusal_no_fallback') this.refusal ??= this.refusalLine(subtype, event.api_refusal_category);
     } else if (event.type === 'result') {
       this.requesting = false;
+      if (typeof event.total_cost_usd === 'number' && Number.isFinite(event.total_cost_usd)) this.billed = true;
       if (event.stop_reason === 'refusal') this.refusal ??= this.refusalLine('result stop_reason refusal', undefined);
       if (event.is_error === true && typeof event.result === 'string') this.noteResultText(event.result);
     }

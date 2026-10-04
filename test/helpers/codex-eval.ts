@@ -201,7 +201,7 @@ export async function runRecordedCodexEval(opts: CodexEvalOptions): Promise<Code
     appendSessionLedger({ key: sessionKey('codex', opts.name), test_name: opts.name, runner: 'codex', started_at: new Date(started).toISOString(),
       budget_ms: opts.budgetMs, elapsed_ms: performance.now() - startMono,
       end: exitReason === 'timeout' ? 'session_timeout' : passed || exitReason === 'validation_failed' ? 'completed' : 'error',
-      ...(exitReason === 'timeout' ? { evidence: `armed ${opts.budgetMs}ms Codex budget expired` } : {}) });
+      ...(exitReason === 'timeout' ? { evidence: `armed ${opts.budgetMs}ms Codex budget expired` } : {}), billed: false });
 
     // addTest appends retry attempts. Never pre-record a failure and then
     // overwrite it: that would manufacture two attempts from one execution.
@@ -211,7 +211,7 @@ export async function runRecordedCodexEval(opts: CodexEvalOptions): Promise<Code
       tier: 'e2e',
       passed,
       duration_ms: failure instanceof CodexEvalTimeout ? Date.now() - started : result?.durationMs ?? Date.now() - started,
-      cost_usd: 0,
+      cost_usd: 0, cost_known: false,
       ...(result ? {
         output: result.output.slice(0, opts.outputLimit ?? 2000),
         turns_used: result.toolCalls.length,

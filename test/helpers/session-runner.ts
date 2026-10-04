@@ -654,7 +654,7 @@ Before source Reads, use Bash to run exactly \`date -u +%Y-%m-%dT%H:%M:%SZ\`. Af
     started_at: startedAt, budget_ms: timeout, elapsed_ms: performance.now() - startMono, end,
     ...(timedOut ? { evidence: timedOutInStartup ? `no output within the ${startupGraceMs}ms startup grace` : `armed ${timeout}ms session timeout fired` }
       : structured ? { evidence: structured.evidence } : {}),
-    liveness: observer.summary(performance.now()) });
+    liveness: observer.summary(performance.now()), billed: observer.billed });
 
   // Parse all collected NDJSON lines
   const parsed = parseNDJSON(collectedLines);

@@ -33,7 +33,7 @@ import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
   type EvalCaseKind, type PanelShape, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
-  trialFailureFields, trialSessions, type TrialFailureDetail,
+  trialCostKnown, trialFailureFields, trialSessions, type TrialFailureDetail,
 } from '../../test/helpers/eval-store';
 import { readSessionLedger, type SessionLedgerRow } from '../../test/helpers/session-ledger';
 import { publishedFence, sanitizePublishedText } from './published-text';
@@ -319,7 +319,7 @@ export function junitCensus(manifest: PaidRunManifest, artifacts: ReportArtifact
         census.history.push({ ...base, case: id, file: shardFile(key), kind, trial: 1, panel: { n: 1, k: 1 }, outcome: caseOutcome,
           ...(failureClass ? { failure_class: failureClass } : {}), ...(failedRecord?.exit_reason ? { exit_reason: String(failedRecord.exit_reason) } : {}),
           ...(error && failed ? { error } : {}), ...diagnosis, ...trialSessions(sessions), duration_ms: cases.reduce((sum, tc) => sum + tc.timeMs, 0),
-          cost_usd: Math.round(mine.reduce((sum: number, r: any) => sum + (Number(r.cost_usd) || 0), 0) * 100) / 100,
+          cost_usd: Math.round(mine.reduce((sum: number, r: any) => sum + (Number(r.cost_usd) || 0), 0) * 100) / 100, ...trialCostKnown(mine, sessions),
           ...(typeof mine[0]?.model === 'string' ? { model: mine[0].model } : {}), ...(cliVersion ? { cli_version: cliVersion } : {}),
           quarantined: false, execution: outcome.reused ? 'reused' : 'executed', source: 'junit' } as TrialOutcomeRecord);
       }
@@ -482,7 +482,13 @@ export interface ReportHeadline {
   redispatchEligible: boolean;
 }
 
-export function formatHeadline(h: ReportHeadline): string[] {
+/** Known cost, never a bare total when any trial's cost is unknown, and no total when none is known. */
+export function formatCost(knownUsd: number, unknownTrials: number, trials: number): string {
+  if (trials > 0 && unknownTrials === trials) return `cost unknown (no billing captured for any of ${trials} trial(s))`;
+  return `cost $${knownUsd.toFixed(2)}${unknownTrials ? ` known + ${unknownTrials} of ${trials} trial(s) cost unknown` : ''}`;
+}
+
+export function formatHeadline(h: ReportHeadline, cost: { unknownTrials: number; trials: number } = { unknownTrials: 0, trials: 0 }): string[] {
   const c = h.counts;
   const minutes = h.wallMs === null ? 'unknown' : `${Math.floor(h.wallMs / 60_000)}m${String(Math.round((h.wallMs % 60_000) / 1000)).padStart(2, '0')}s`;
   return [
@@ -490,7 +496,7 @@ export function formatHeadline(h: ReportHeadline): string[] {
     `  rule ${c.rule.passed}/${c.rule.total} · behavior ${c.behavior.passed}/${c.behavior.total}${c.behavior.split ? ` (${c.behavior.split} split)` : ''}`
       + ` · judge ${c.judge.passed}/${c.judge.total} · quarantined ${c.quarantined.total} (${c.quarantined.failingLane} failing the lane)`,
     `  SKIPPED ${c.skipped} · INFRA ${c.infra} · INCOMPLETE ${c.incomplete} · unattributed ${c.unattributed} · ACTION REQUIRED ${h.actionRequired}`,
-    `  wall ${minutes} · cost $${h.costUsd.toFixed(2)}${h.redispatchEligible ? ' · every red is machine-classified INFRA/INCOMPLETE: eligible for ONE re-dispatch as a new run (EVAL_POLICY.infraRedispatch); report both runs' : ''}`,
+    `  wall ${minutes} · ${formatCost(h.costUsd, cost.unknownTrials, cost.trials)}${h.redispatchEligible ? ' · every red is machine-classified INFRA/INCOMPLETE: eligible for ONE re-dispatch as a new run (EVAL_POLICY.infraRedispatch); report both runs' : ''}`,
   ];
 }
 
@@ -675,7 +681,7 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
         ...(t.outcome === 'failed' && t.failure_cause ? { failure_cause: t.failure_cause } : {}),
         ...(t.outcome === 'failed' && t.failure_cause_evidence ? { failure_cause_evidence: t.failure_cause_evidence } : {}),
         ...(t.outcome === 'failed' && t.failure_detail ? { failure_detail: t.failure_detail } : {}), ...(t.sessions ? { sessions: t.sessions } : {}),
-        duration_ms: t.duration_ms, cost_usd: t.cost_usd, ...(t.model ? { model: t.model } : {}),
+        duration_ms: t.duration_ms, cost_usd: t.cost_usd, ...(t.cost_known === false ? { cost_known: false } : {}), ...(t.model ? { model: t.model } : {}),
         ...(outcome.reused ? { input_identity: outcome.reused.inputKey } : {}),
         quarantined: t.quarantined, execution: outcome.reused ? 'reused' : 'executed', source: 'shard' } as TrialOutcomeRecord);
     }
@@ -742,7 +748,8 @@ export function runPaidReport(reportDir: string, options: { writeDurations?: boo
     costUsd: Math.round(costUsd * 100) / 100,
     redispatchEligible: red && infraOnly(verdict.problems),
   };
-  const headlineLines = formatHeadline(headline);
+  const executed = history.filter(r => r.attempt === primary && r.execution === 'executed' && r.outcome !== 'skipped');
+  const headlineLines = formatHeadline(headline, { unknownTrials: executed.filter(r => r.cost_known === false).length, trials: executed.length });
   for (const line of headlineLines) console.log(line);
   if (failureLines.length) {
     console.log('[test:paid] failures and split verdicts:');

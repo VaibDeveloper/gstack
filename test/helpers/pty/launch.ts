@@ -242,7 +242,7 @@ export async function launchClaudePty(
       recorded = true;
       const elapsed = performance.now() - startedMono;
       appendSessionLedger({ key: sessionKey('pty', undefined), runner: 'pty', started_at: startedAt, budget_ms: timeoutMs,
-        elapsed_ms: elapsed, end: elapsed >= timeoutMs ? 'session_timeout' : 'completed', ...idlePanelEnd(handle.visibleText()) });
+        elapsed_ms: elapsed, end: elapsed >= timeoutMs ? 'session_timeout' : 'completed', ...idlePanelEnd(handle.visibleText()), billed: false });
     }
     return close();
   } });

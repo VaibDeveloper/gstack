@@ -265,7 +265,7 @@ export function backfillEvalFiles(files: string[], run?: { run_id: string; sha?:
         tier: caseTier(id, registry), kind: registry.kinds[id]!, trial: 1, panel: { n: 1, k: 1 }, attempt: 1,
         outcome, ...(outcome === 'failed' ? { failure_class: failureClassOf(entry) } : {}),
         exit_reason: entry.exit_reason, error: sanitizeTrialError(entry.error),
-        duration_ms: Math.max(0, entry.duration_ms || 0), cost_usd: Math.max(0, entry.cost_usd || 0),
+        duration_ms: Math.max(0, entry.duration_ms || 0), cost_usd: Math.max(0, entry.cost_usd || 0), ...(entry.cost_known === false ? { cost_known: false } : {}),
         model: entry.model, cli_version: result.claude_cli_version, policy_version: 0, quarantined: false,
         execution: entry.execution === 'reused' ? 'reused' : 'executed', source: 'backfill',
         run_id: run?.run_id ?? `local:${file}`, sha: run?.sha ?? result.git_sha, recorded_at: run?.timestamp ?? result.timestamp,

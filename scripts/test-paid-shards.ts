@@ -83,7 +83,7 @@ import {
   getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
   sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
   type EvalCaseKind, type PanelShape, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
-  trialFailureFields, trialSessions, type TrialFailureCause, type TrialFailureDetail, type TrialSessionSummary,
+  trialCostKnown, trialFailureFields, trialSessions, type TrialFailureCause, type TrialFailureDetail, type TrialSessionSummary,
 } from '../test/helpers/eval-store';
 import { readSessionLedger, type SessionLedgerRow } from '../test/helpers/session-ledger';
 import { E2E_KINDS } from '../test/helpers/touchfiles-data';
@@ -726,6 +726,7 @@ export interface ShardTrialRecord {
   failure_cause_evidence?: string;
   failure_detail?: TrialFailureDetail;
   sessions?: TrialSessionSummary[];
+  cost_known?: false;
 }
 
 type TrialEvidence = { records: any[]; contract: string | null; sessions?: SessionLedgerRow[] };
@@ -759,6 +760,7 @@ export function classifyTrialShard(
     cost_usd: Math.round(evidence.records.reduce((sum, record) => sum + (Number(record.cost_usd) || 0), 0) * 100) / 100,
     duration_ms: outcome.elapsedMs,
     ...(typeof failedRecord?.model === 'string' ? { model: failedRecord.model } : {}), ...trialSessions(evidence.sessions ?? []),
+    ...trialCostKnown(evidence.records, evidence.sessions),
   };
   const failed = (failureClass: TrialFailureClass, error?: string): ShardTrialRecord => {
     const cls = evidence.contract !== null ? 'contract' : failureClass;
