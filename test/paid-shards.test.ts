@@ -13,6 +13,7 @@ import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
 import { E2E_TIERS, E2E_TOUCHFILES } from './helpers/touchfiles';
 
 const ROOT = path.resolve(import.meta.dir, '..');
@@ -56,6 +57,8 @@ import {
   excludedCasesNamePattern,
   runCaseDiagnosis,
   caseFile,
+  caseSelection,
+  afterRepairCommand,
   parseCliOptions,
   loadPaidTestDurations,
   shardDurationViolations,
@@ -686,6 +689,33 @@ describe('isolated trial shards: record, classification and slice exit', () => {
     }
   });
 
+  test('classification adds cause, detail and ledger sessions; failure_class and outcome never change', () => {
+    const sessions = [{ key: 'claude-p:review-sql-injection#1', runner: 'claude-p' as const, started_at: 't', budget_ms: 300_000, elapsed_ms: 300_100,
+      end: 'session_timeout' as const, evidence: 'armed 300000ms session timeout fired', liveness: { partial: true, events: 9, turns: 2, max_request_silence_ms: 150_000 } }];
+    const inputs: Array<[Partial<ShardOutcome>, { records: any[]; contract: string | null }]> = [
+      [{}, none], [{}, { records: [], contract: 'handoff missing' }],
+      [{ status: 'failed' }, { records: [{ passed: false, exit_reason: 'timeout', timeout_at_turn: 9, error: 'x' }], contract: null }],
+      [{ status: 'failed' }, { records: [{ passed: false, exit_reason: 'success', error: 'expect(received).toBe(expected)\n\nExpected: 3\nReceived: 2\n' }], contract: null }],
+      [{ status: 'timed-out', executedTests: null, skippedTests: null }, none],
+      [{ status: 'failed', executedTests: null, skippedTests: null }, none],
+    ];
+    for (const [over, evidence] of inputs) {
+      const before = classifyTrialShard({ ...base, ...over }, 'review-sql-injection', 1, plan, evidence);
+      const after = classifyTrialShard({ ...base, ...over }, 'review-sql-injection', 1, plan, { ...evidence, sessions });
+      expect([after.outcome, after.failure_class, after.error], JSON.stringify(over)).toEqual([before.outcome, before.failure_class, before.error]);
+      expect(after.sessions).toEqual([{ key: 'claude-p:review-sql-injection#1', runner: 'claude-p', elapsed_ms: 300_100, budget_ms: 300_000, end: 'session_timeout' }]);
+      expect(after.failure_cause === undefined).toBe(after.outcome !== 'failed');
+    }
+    const c = (over: Partial<ShardOutcome>, evidence: { records: any[]; contract: string | null; sessions?: any[] }) =>
+      classifyTrialShard({ ...base, ...over }, 'review-sql-injection', 1, plan, evidence);
+    expect(c({ status: 'failed' }, { records: [{ passed: false, exit_reason: 'success', error: 'expect(received).toBe(expected)\n\nExpected: 3\nReceived: 2\n' }], contract: null }))
+      .toMatchObject({ failure_class: 'assertion', error: 'expect(received).toBe(expected)', failure_cause: 'assertion',
+        failure_cause_evidence: 'session completed; check failed', failure_detail: { expected: '3', received: '2' } });
+    expect(c({ status: 'failed' }, { records: [{ passed: false, exit_reason: 'timeout', error: 'Error: Claude Code process aborted by user' }], contract: null, sessions }))
+      .toMatchObject({ failure_class: 'timeout', failure_cause: 'provider_stall' });
+    expect(c({}, { records: [], contract: 'handoff missing', sessions })).toMatchObject({ failure_class: 'contract', failure_cause: 'contract', failure_cause_evidence: 'handoff missing' });
+  });
+
   test('slice exit: rule shards stay strict; failed trials never red the runner, missing records do', () => {
     const trial = (outcome: 'passed' | 'failed' | null) => ({ status: outcome === 'failed' ? 'failed' as const : 'passed' as const,
       trial: { case: 'c', trial: 1, ...plan, outcome, cost_usd: 0, duration_ms: 1, ...(outcome === null ? { harness: 'never started' } : {}) } });
@@ -748,6 +778,52 @@ console.log("Ran 1 tests across 1 files. [1ms]"); process.exit(${fail ? 1 : 0});
     expect(() => parseCliOptions(['--case', 'no-such-case'], {})).toThrow('live E2E case id');
     expect(() => parseCliOptions(['--case', 'review-sql-injection', '--report', '/tmp/r'], {})).toThrow('local diagnosis');
     expect(caseFile('review-sql-injection')).toBe('test/skill-e2e-review.test.ts');
+  });
+
+  test('B4: every registered E2E case resolves to exactly itself, loop-registered cases included', () => {
+    const unresolved: string[] = [];
+    for (const id of Object.keys(E2E_TIERS)) {
+      let selection: ReturnType<typeof caseSelection>;
+      try { selection = caseSelection(id); } catch (error) { unresolved.push(`${id}: ${(error as Error).message}`); continue; }
+      const { registered, computed } = fileCaseRegistration(selection.file, fs.readFileSync(path.join(ROOT, selection.file), 'utf8'));
+      expect(registered, id).toContain(id);
+      if (selection.mode === 'file') expect(registered, id).toEqual([id]);
+      else expect(computed || fs.readFileSync(path.join(ROOT, selection.file), 'utf8').includes(CASE_TEST_NAMES[id] ?? id), id).toBe(true);
+    }
+    // Fifteen carve files each register this one case; CI runs each file as its own shard.
+    expect(unresolved).toEqual([expect.stringMatching(/^carve-section-loading: --case carve-section-loading: registered by test\/carve-section-loading-/)]);
+    expect(caseSelection('plan-mode-no-op')).toEqual({ file: 'test/skill-e2e-plan-mode-no-op.test.ts', mode: 'file', reason: 'the whole file (it registers no other case)' });
+    expect(caseSelection('review-coverage-audit')).toMatchObject({ file: 'test/skill-e2e-coverage-audit.test.ts', mode: 'name' });
+    expect(caseSelection('plan-eng-multi-finding-batching').file).toBe('test/skill-e2e-plan-eng-multi-finding-batching.test.ts');
+    expect(caseSelection('review-sql-injection')).toMatchObject({ file: 'test/skill-e2e-review.test.ts', mode: 'name' });
+    // The report's after-a-repair command selects exactly one case: --case when it resolves, else that shard's file.
+    expect(afterRepairCommand('gate', 'plan-mode-no-op', 'test/skill-e2e-plan-mode-no-op.test.ts')).toBe('bun run scripts/test-paid-shards.ts --tier gate --case plan-mode-no-op');
+    expect(afterRepairCommand('periodic', 'carve-section-loading', 'test/carve-section-loading-qa.test.ts')).toBe('EVALS=1 EVALS_TIER=periodic bun test test/carve-section-loading-qa.test.ts');
+  });
+
+  test('B4: --list prints the selection; an unknown id exits non-zero before any process starts', () => {
+    const run = (args: string[]) => spawnSync(process.execPath, [path.join(ROOT, 'scripts/test-paid-shards.ts'), ...args], { encoding: 'utf8', timeout: 60_000, cwd: ROOT });
+    const listed = run(['--tier', 'gate', '--case', 'plan-mode-no-op', '--list']);
+    expect(listed.status, listed.stderr).toBe(0);
+    expect(listed.stdout).toContain('--case plan-mode-no-op: 1 trial(s) of test/skill-e2e-plan-mode-no-op.test.ts (kind rule), selects the whole file (it registers no other case), list only');
+    const unknown = run(['--tier', 'gate', '--case', 'no-such-case']);
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toContain('--case needs a live E2E case id. Received: no-such-case');
+    expect(unknown.stdout).not.toContain('shard');
+  });
+
+  test('B4: a whole-file case runs one file shard per trial and judges each by shard status', async () => {
+    const evalDirBase = fs.mkdtempSync(path.join(os.tmpdir(), 'case-file-diagnosis-'));
+    const lines: string[] = [];
+    let call = 0;
+    try {
+      const verdict = await runCaseDiagnosis('plan-mode-no-op', { trials: 2, evalDirBase, log: line => lines.push(line),
+        commandFor: files => { call++; expect(files).toEqual(['test/skill-e2e-plan-mode-no-op.test.ts']);
+          return { command: process.execPath, args: ['-e', `console.log("Ran 5 tests across 1 files. [1ms]"); process.exit(${call === 2 ? 1 : 0});`] }; } });
+      expect(call).toBe(2);
+      expect(verdict).toMatchObject({ case: 'plan-mode-no-op', kind: 'rule', panel: { n: 2, k: 2 }, passed: 1, status: 'FAIL' });
+      expect(lines.join('\n')).toContain('FAIL 1/2 (✓✗)');
+    } finally { fs.rmSync(evalDirBase, { recursive: true, force: true }); }
   });
 
   test('--case runs the CI panel runner and prints its panelVerdict', async () => {
