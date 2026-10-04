@@ -35,6 +35,27 @@ describe(`${CASE} replay corpus`, () => {
     }
   });
 
+  // CI's eval image (git 2.43) recorded every census entry on gstack-safe-git's
+  // unsupported-Git fallback; a git >= 2.44 image reads history and HEAD.
+  test('each entry names its git path, and both the fallback and supported shapes are covered', () => {
+    for (const { file, entry } of entries) {
+      expect(['fallback', 'supported'], file).toContain(entry.git_path);
+      expect(entry.git_path_evidence.trim().length, file).toBeGreaterThan(20);
+    }
+    for (const shape of ['fallback', 'supported']) {
+      expect(entries.some(({ entry }) => entry.git_path === shape && entry.expected === 'pass'), shape).toBe(true);
+      expect(entries.some(({ entry }) => entry.git_path === shape && entry.expected === 'refuse'), shape).toBe(true);
+    }
+  });
+
+  test('the actor reads no git-path-specific text', () => {
+    const source = fs.readFileSync(path.join(import.meta.dir, 'helpers', 'shared-libs-plan-actor.ts'), 'utf8');
+    expect(source).not.toMatch(/local history|history unavailable|HEAD unknown|unsupported[- ]Git|no-lazy-fetch|safe-git/i);
+    const pass = entries.find(({ file }) => file === '37193478719-t1-supported-git-pass.json')!.entry;
+    const source37193478719 = entries.find(({ file }) => file === '37193478719-t1-pass.json')!.entry;
+    expect(pass.expected_answer).toBe(source37193478719.expected_answer);
+  });
+
   test.each(entries.map(({ file, entry }) => [file, entry] as const))('%s', (_file, entry) => {
     const choose = createSharedPlanReuseSelector();
     if (entry.expected === 'refuse') {

@@ -11,6 +11,8 @@
     "path": "shards/skill-e2e-shared-libs-periodic/1.91.19-garrytan-severe-fix-wave-oct3-e2e-2026-10-04-0751.json#tests[name=shared-libs-plan-callers].transcript[tool_use name=AskUserQuestion].input"
   },
   "census_outcome": "failed",
+  "git_path": "fallback",
+  "git_path_evidence": "Recorded in CI's eval image (ubuntu:24.04, git 2.43), which rejects --no-lazy-fetch (exit 129), so gstack-safe-git took its unsupported-Git fallback (local history unavailable, branch HEAD unknown).",
   "census_error": "Error: shared-libs-plan-callers actor: question expands beyond unchanged-helper reuse and its required proof: hardening",
   "expected": "pass",
   "justification": "Fixed false red: every option reuses the unchanged lib/retry-after.ts helper and names hardening only as excluded scope or a risk; census-time actor (b24b6d8f) did not treat the verbless \"... and helper hardening unchanged.\" list as an exclusion; fcb4024, then 2a6b766 (verb+object expansions), squashed to main in 2db0b3a.",

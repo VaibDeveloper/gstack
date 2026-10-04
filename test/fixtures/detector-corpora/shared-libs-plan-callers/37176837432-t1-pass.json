@@ -11,6 +11,8 @@
     "path": "shards/skill-e2e-shared-libs-periodic/1.91.19-garrytan-severe-fix-wave-oct3-e2e-2026-10-04-0428.json#tests[name=shared-libs-plan-callers].transcript[tool_use name=AskUserQuestion].input"
   },
   "census_outcome": "passed",
+  "git_path": "fallback",
+  "git_path_evidence": "Recorded in CI's eval image (ubuntu:24.04, git 2.43), which rejects --no-lazy-fetch (exit 129), so gstack-safe-git took its unsupported-Git fallback (local history unavailable, branch HEAD unknown).",
   "census_error": "",
   "expected": "pass",
   "justification": "Census pass: the question offers only unchanged-helper reuse with proof-depth alternatives, and the actor answered \"Reuse helper, full proof\".",
