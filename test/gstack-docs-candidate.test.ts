@@ -88,4 +88,23 @@ describe('gstack-docs-candidate', () => {
     }
     expect(fs.existsSync(path.join(dir, 'inside.json'))).toBe(false);
   });
+
+  test('/ship records post-child hashes with the helper, so Step 16 compares instead of retyping', () => {
+    // ci-37198445662 gate-census-2: ship-docsync-completion/-store parents spent 45-78 s of model time
+    // retyping hash maps, child output and records into several artifacts after the child returned.
+    const gate = fs.readFileSync(path.resolve(import.meta.dir, '..', 'ship/sections/documentation.md.tmpl'), 'utf8').replace(/\s+/g, ' ');
+    expect(gate).toContain('rerun the Prepare `snapshot` command unchanged except `--out <audit-id>-post.json`; Step 16 runs `compare` on it. Never type hashes.');
+    expect(gate).toContain('cite saved files by path instead of copying candidate, compare or child output');
+    const { dir, root, record } = repo();
+    const args = ['--audit-id', 'a1', '--mode', 'edit', '--base', 'main', '--docs', 'handbook'];
+    expect(run(dir, 'snapshot', '--out', record, ...args).status).toBe(0);
+    fs.appendFileSync(path.join(dir, 'handbook', 'guide.md'), 'child edit\n');
+    expect(JSON.parse(run(dir, 'compare', record).stdout).content_changed).toEqual(['handbook/guide.md']);
+    const post = path.join(root, 'a1-post.json');
+    expect(run(dir, 'snapshot', '--out', post, ...args).status).toBe(0);
+    expect(JSON.parse(run(dir, 'compare', post).stdout)).toEqual({ audit_id: 'a1', head_changed: false, index_changed: false, content_changed: [], newly_dirty: [] });
+    fs.appendFileSync(path.join(dir, 'app.ts'), '// later edit\n');
+    fs.writeFileSync(path.join(dir, 'late.md'), 'late\n');
+    expect(JSON.parse(run(dir, 'compare', post).stdout)).toMatchObject({ content_changed: ['app.ts'], newly_dirty: ['late.md'] });
+  });
 });
