@@ -891,7 +891,7 @@ async function main(): Promise<number> {
   }
   if (options.caseId) {
     preflightAnthropicApi(process.env);
-    const verdict = await runCaseDiagnosis(options.caseId, { trials: options.trials ?? undefined, jobs: options.jobs,
+    const verdict = await runCaseDiagnosis(options.caseId, { trials: options.trials ?? undefined, jobs: options.jobs, runShards: runPaidShards,
       withinShardConcurrency: options.withinShardConcurrency, timeoutMs: timeoutOverride,
       evalDirBase: process.env.GSTACK_EVAL_DIR || getProjectEvalDir() });
     return verdict.status === 'PASS' ? 0 : 1;

@@ -70,6 +70,8 @@ export function caseFile(id: string, rootDir = ROOT, discovered = collectPaidTes
 export async function runCaseDiagnosis(id: string, options: {
   trials?: number; jobs?: number; withinShardConcurrency?: number; timeoutMs?: number; rootDir?: string; env?: NodeJS.ProcessEnv;
   evalDirBase?: string; commandFor?: RunShardsOptions['commandFor']; log?: (line: string) => void; file?: string;
+  /** The CLI passes its own runner: importing the entry module during its top-level await never resolves. */
+  runShards?: typeof import('../test-paid-shards').runPaidShards;
 } = {}): Promise<PanelVerdict> {
   const rootDir = options.rootDir ?? ROOT;
   const log = options.log ?? ((line: string) => console.log(line));
@@ -82,7 +84,7 @@ export async function runCaseDiagnosis(id: string, options: {
   const tier = E2E_TIERS[id] as PaidTier;
   log(`[test:paid] --case ${id}: ${n} trial(s) of ${file} (kind ${plan.kind}, PASS at ${plan.panel.k}/${n}${plan.quarantined ? ', quarantined' : ''}), tier=${tier}`);
   // The runner is the CLI module; load it lazily so this library never imports it statically (no cycle).
-  const { runPaidShards } = await import('../test-paid-shards');
+  const runPaidShards = options.runShards ?? (await import('../test-paid-shards')).runPaidShards;
   const shardOptions = { withinShardConcurrency: options.withinShardConcurrency, timeoutMs: options.timeoutMs, rootDir, log, commandFor: options.commandFor,
     env: { ...(options.env ?? process.env), EVALS: '1', EVALS_TIER: tier, EVALS_PREFLIGHT_OK: '1', EVALS_ALL: '1',
       ...paidSelectionEnv('full', { e2e: [id], judges: [] }, `--case ${id}`) } };

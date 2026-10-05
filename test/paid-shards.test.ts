@@ -822,6 +822,19 @@ console.log("Ran 1 tests across 1 files. [1ms]"); process.exit(${fail ? 1 : 0});
     expect(unknown.stdout).not.toContain('shard');
   });
 
+  test('the --case CLI starts its trial shards (it hands runCaseDiagnosis its own runner)', () => {
+    // A dynamic import of scripts/test-paid-shards.ts while it is still in its top-level await never resolves,
+    // so the CLI hung after its first line. The trial is killed at its 1 s wall and cannot reach a model.
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'case-cli-'));
+    try {
+      const run = spawnSync(process.execPath, [path.join(ROOT, 'scripts/test-paid-shards.ts'), '--tier', 'gate', '--case', 'review-sql-injection', '--trials', '1', '--timeout', '1'], {
+        encoding: 'utf8', timeout: 60_000, cwd: ROOT,
+        env: { PATH: `${path.dirname(process.execPath)}:/usr/bin:/bin`, HOME: home, TMPDIR: home, EVALS_PREFLIGHT_OK: '1', GSTACK_EVAL_DIR: path.join(home, 'evals'), EVALS_RUN_ID: 'case-cli-start' } });
+      expect(run.error).toBeUndefined();
+      expect(run.stdout).toContain('[test:paid] shard 1/1 START test/skill-e2e-review.test.ts#review-sql-injection~t1');
+    } finally { fs.rmSync(home, { recursive: true, force: true }); }
+  }, 70_000);
+
   test('B4: a whole-file case runs one file shard per trial and judges each by shard status', async () => {
     const evalDirBase = fs.mkdtempSync(path.join(os.tmpdir(), 'case-file-diagnosis-'));
     const lines: string[] = [];
