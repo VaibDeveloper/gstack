@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.91.21.0] - 2026-10-04
+## [1.91.23.0] - 2026-10-05
 
 **A failed eval now says what happened, with the evidence and the next command.**
 **Bun is checked before anything installs, and make-pdf and /review work in Codex.**
@@ -11,7 +11,7 @@ This release follows up on the severe fix wave. Its eight census runs had 21 red
 
 Each row is a regression test on this release that fails on v1.91.19.0, or a measurement from the 2026-10-03/04 census artifacts named in the row.
 
-| Check | v1.91.19.0 | v1.91.21.0 |
+| Check | v1.91.19.0 | v1.91.23.0 |
 |---|---|---|
 | make-pdf blocks on Codex that use `$P` without finding it | 7 of 8 | 0 |
 | /review with a read-only `.git` (Codex's sandbox) | prints nothing, "Nothing to review" | reviews against the local base, says `stale at <rev>` |
@@ -67,6 +67,31 @@ The first three rows are the ones users feel. The last three are why the next ce
 - Judge calibration controls (`docs/evals/judge-controls-2026-10.md`). The workflow judges passed bundles with a required step removed, so `test/workflow-required-steps.test.ts` now checks every step and phase heading of the judged workflow skills.
 - Paid shard durations refreshed from census 37198445662; a JUnit case's recorded wall is capped by its shard's wall.
 - The docsync fixture saves its observation interface to a file its children read instead of having the parent copy it into each child prompt.
+
+## [1.91.22.0] - 2026-10-05
+
+**`/cso` scanner execution has reviewed, signed scanner images to build from.**
+
+`lib/cso/scanner-images/build-inputs.json` now pins one attested base image per scanner (gitleaks, OSV-Scanner, Semgrep, zizmor, Trivy, Schemathesis) for linux/amd64 and linux/arm64, plus the SBOM generator. None of the upstream images publish GitHub artifact attestations, so the bases come from [`garrytan/gstack-cso-scanner-bases`](https://github.com/garrytan/gstack-cso-scanner-bases) release `bases-2026.10.04.3`: each re-publishes a pinned upstream digest with the offline Semgrep rules or OSV/Trivy databases added, and its workflow signs SLSA provenance and an SPDX SBOM. Every identity, statement-set digest and asset hash was re-verified independently before the state changed to `reviewed`. Dispatching `cso-scanner-images.yml` on main now builds, qualifies and proposes the scanner catalog; until that catalog merges, scans still report `not assessed`.
+
+### The numbers that matter
+
+| Check | Result |
+|---|---|
+| Attested images (6 scanners x 2 platforms + generator) verified with gstack's own `gh attestation verify` flags | 13/13, both predicates |
+| Statement-set digests recomputed with `scripts/cso-attestation-evidence.ts` | 26/26 equal |
+| Offline asset hashes recomputed from both platforms with `hash-asset` | 6/6 equal |
+| Scanners completing a real network-none scan through the production adapter on the published amd64 bases | 6/6, no coverage gaps |
+
+### What changes for you
+
+- **OSV and Trivy reports survive redaction.** Advisory links such as `ntap-20210312-0006` read as phone numbers and four-part versions read as IP addresses, which used to discard the whole report. Scanner output now has each located span replaced in place; output is still withheld when a span cannot be located or crosses stdout and stderr.
+- **Schemathesis scans finish.** Schemathesis 4.26+ fuzzes until `--max-time` is spent; the adapter now budgets 75% of the scanner deadline and accepts a `max_time` stop once every selected operation ran.
+- **The scanner qualification test runs.** Its fixture now lives where the executor mounts sources and declares a real dependency, so OSV and Trivy exercise their offline databases.
+
+### For contributors
+
+- Refresh advisory databases by pushing a new `bases-*` tag in `gstack-cso-scanner-bases`, then review the release's `build-inputs.json` candidate here.
 
 ## [1.91.19.0] - 2026-10-03
 
