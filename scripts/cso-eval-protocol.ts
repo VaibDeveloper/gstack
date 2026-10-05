@@ -5,6 +5,8 @@ export type ProducerVersion = 'v2' | 'v3';
 export type ProducerMode = 'daily' | 'comprehensive';
 export type ProducerStack = 'node' | 'bun' | 'python' | 'rails';
 export type ProducerVariant = 'vulnerable' | 'fixed';
+export type ProducerPlatform = 'linux/amd64' | 'linux/arm64';
+export const PRODUCER_PLATFORMS: readonly ProducerPlatform[] = ['linux/amd64', 'linux/arm64'];
 
 export interface ProducerCell {
   id: string;
@@ -19,6 +21,8 @@ export interface ProducerCell {
   budgetSeconds: number;
   sourceHash: string;
   skillHash: string;
+  /** Release and baseline cells pin the native producer platform; full-profile cells omit it. */
+  platform?: ProducerPlatform;
 }
 
 export interface ProducerSourceEntry {
@@ -121,6 +125,12 @@ export type ProducerReceiptIndex = Omit<ProducerReceipt, 'output' | 'error'> & {
 };
 
 export const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
+
+/** The native platform this producer process runs on, or null when no CSO runtime platform matches it. */
+export function producerHostPlatform(platform: string = process.platform, arch: string = process.arch): ProducerPlatform | null {
+  if (platform !== 'linux') return null;
+  return arch === 'x64' ? 'linux/amd64' : arch === 'arm64' ? 'linux/arm64' : null;
+}
 
 export function producerInputHash(input: ProducerInput): string {
   return sha256(JSON.stringify(input));

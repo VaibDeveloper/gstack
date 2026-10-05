@@ -249,6 +249,47 @@ reports, containment/canary receipts, and enforced oracle separation. Missing
 evaluations return
 `unmeasured` or `partial`, never passing release gates.
 
+## Release profile, private corpora, and two architectures
+
+The matrix above is the `full` profile: matched v2/v3 cells, three repetitions,
+and one producer installation. This public corpus is a development set, because
+its oracles are public. A private evaluator scores a held-out corpus with the
+same layout through the same code:
+
+- **Injected corpus.** `defineEvalCorpus(manifest, sourceFiles)` accepts a
+  manifest with this `manifest.json` layout and a deterministic source generator,
+  checks every variant's source hash, and refuses the public corpus version.
+  `prepareEvalJobs(..., corpus)` and `materializeCase(..., corpus)` materialize
+  from it; `createEvalMatrix`, `validateMatrix`, `collectProducerReceipts`,
+  `scoreCollectedEval`, and `createEvalBaseline` take its manifest. Its oracles
+  use the `PrivateOracle` shape from `test/helpers/cso-eval-oracles.ts` and stay
+  in the private evaluator.
+- **`release` profile.** `createEvalMatrix({ profile: 'release', skillHashes: { v3 },
+  platforms: { daily, comprehensive } })` builds v3-only cells with one repetition.
+  Daily cells run on one platform; each comprehensive case is fixed to
+  `linux/amd64` or `linux/arm64`. Every cell carries its `platform`, and the
+  producer refuses a cell whose platform differs from its host.
+- **Per-platform identities.** One batch may hold both architectures. Each
+  platform must have exactly one producer installation and one provider binary;
+  platforms must use different installations with identical embedded catalogs
+  and identical provider family, policy revision, version, and arguments. All
+  cells must report one effective model.
+- **External v2 baseline.** A `baseline` profile matrix holds v2 comprehensive
+  cells with the release platform assignment. `createEvalBaseline` turns its
+  complete, fully adjudicated, receipt-bound results into an `EvalBaseline`
+  record whose `baselineHash` covers the corpus hash, model, host, budget,
+  platform assignment, v2 payload hash, producer batch, effective model, provider
+  policy and version, and each case's outcome. A release matrix pins that hash
+  when it is created; scoring then requires the exact record and the same
+  effective model and provider policy. Without a pinned baseline the
+  regression gate stays `unmeasured`.
+
+A matrix, batch, or result from one corpus never validates against another:
+the matrix binds the corpus hash, so a mixed-corpus batch is rejected. The
+`collect`, `score`, and `baseline` commands accept `--corpus-manifest <file>`,
+and `score` accepts `--baseline <file>`. The `full` profile's matrix bytes and
+gates are unchanged.
+
 The free accounting tests use clearly labeled synthetic observations to test the
 scorer. They are **not measured agent performance**. No paid comparison, fixture
 cold-start qualification, or containment qualification is claimed by this corpus.

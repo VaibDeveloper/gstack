@@ -17,6 +17,8 @@ import { GeminiAdapter, prepareGeminiProducerState, removeGeminiProducerState } 
 import { PRICING } from '../test/helpers/pricing';
 import type { ProviderAdapter, RunOpts, RunResult } from '../test/helpers/providers/types';
 import {
+  PRODUCER_PLATFORMS,
+  producerHostPlatform,
   producerInputHash,
   producerArtifactInventoryHash,
   producerInstallationIdentityHash,
@@ -198,7 +200,8 @@ function repositoryIdentity(root: string): string {
 }
 
 function validateCell(cell: ProducerCell): void {
-  if (!cell || !HEX.test(cell.id) || !cell.caseId || !['node', 'bun', 'python', 'rails'].includes(cell.stack) || !['vulnerable', 'fixed'].includes(cell.variant) || !['v2', 'v3'].includes(cell.version) || !['daily', 'comprehensive'].includes(cell.mode) || ![1, 2, 3].includes(cell.repetition) || !cell.model || !['claude', 'codex', 'gemini'].includes(cell.host) || !Number.isInteger(cell.budgetSeconds) || cell.budgetSeconds <= 60 || cell.budgetSeconds > 3600 || !HEX.test(cell.sourceHash) || !HEX.test(cell.skillHash)) throw new Error('INVALID_PRODUCER_INPUT');
+  if (!cell || !HEX.test(cell.id) || !cell.caseId || !['node', 'bun', 'python', 'rails'].includes(cell.stack) || !['vulnerable', 'fixed'].includes(cell.variant) || !['v2', 'v3'].includes(cell.version) || !['daily', 'comprehensive'].includes(cell.mode) || ![1, 2, 3].includes(cell.repetition) || !cell.model || !['claude', 'codex', 'gemini'].includes(cell.host) || !Number.isInteger(cell.budgetSeconds) || cell.budgetSeconds <= 60 || cell.budgetSeconds > 3600 || !HEX.test(cell.sourceHash) || !HEX.test(cell.skillHash) || (cell.platform !== undefined && !PRODUCER_PLATFORMS.includes(cell.platform))) throw new Error('INVALID_PRODUCER_INPUT');
+  if (cell.platform !== undefined && cell.platform !== producerHostPlatform()) throw new Error('UNMATCHED_PRODUCER_PLATFORM');
 }
 
 export interface ProducerHelperBinding {
