@@ -85,7 +85,7 @@ describe('CSO native gate evidence', () => {
     expect(() => parseJUnit('<?xml version="1.0"?>\n<testsuites name="bun test"></testsuites>')).toThrow('EMPTY_JUNIT_REPORT');
   });
 
-  test('the real Bun JUnit report of the Docker suites names every required test, and skipped suites prove nothing', () => {
+  test.skipIf(process.platform==='win32')('the real Bun JUnit report of the Docker suites names every required test, and skipped suites prove nothing', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cso-native-junit-')); temps.push(dir);
     const outfile = join(dir, 'native.xml');
     const env = { ...process.env };

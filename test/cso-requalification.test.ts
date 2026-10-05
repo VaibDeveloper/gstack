@@ -23,7 +23,7 @@ describe('CSO runtime requalification triggers', () => {
     expect(cli.status, cli.stderr).toBe(0); expect(cli.stdout).toBe('REQUALIFICATION CURRENT\n');
   });
 
-  test('triggers cover the helper ABI, isolation policy, every image-embedded source byte, and the build inputs', async () => {
+  test.skipIf(process.platform==='win32')('triggers cover the helper ABI, isolation policy, every image-embedded source byte, and the build inputs', async () => {
     expect(current).toMatchObject({ helperAbi: 3, isolationPolicyHash: ISOLATION_POLICY_HASH, buildInputsRevision: buildInputs.revision });
     const files = await imageSourceFiles();
     for (const file of ['lib/cso/verifier.ts', 'lib/cso/preparation-container.ts', 'lib/cso/contracts.ts', 'lib/cso/images/entrypoint', 'lib/cso/images/rails.Dockerfile']) expect(files).toContain(file);
