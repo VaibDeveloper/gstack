@@ -399,7 +399,13 @@ test('Ship sends its authorized 64k cap and compact response contract through th
   expect(options.maxTokens).toBe(65_536);
   expect(options.stream).toBe(true);
   expect(options.effort).toBe('medium');
-  expect(source.match(/^\s+effort: '/gm)).toHaveLength(1);
+  // Only measured registrations bound judge effort: ship and the ~64k-token review bundle.
+  expect(source.match(/^\s+effort: '/gm)).toHaveLength(2);
+  const review = source.match(/testIfSelected\('review\/SKILL\.md workflow',[\s\S]*?await runWorkflowJudge\(\{([\s\S]*?)\n    \}\);/);
+  expect(review).not.toBeNull();
+  const reviewOptions = new Function('QA_DISCOVERY_REFERENCES', `return ({${review![1]}});`)(QA_DISCOVERY_REFERENCES);
+  expect([reviewOptions.maxTokens, reviewOptions.stream, reviewOptions.effort, reviewOptions.schemaTransport, reviewOptions.compactReasoning])
+    .toEqual([65_536, true, 'medium', undefined, undefined]);
   expect(WORKFLOW_JUDGE_RESPONSE_SCHEMA.properties.reasoning).not.toHaveProperty('pattern');
   expect(WORKFLOW_JUDGE_RESPONSE_SCHEMA.properties.reasoning).not.toHaveProperty('maxLength');
   expect(source.match(/compactReasoning: true/g)).toHaveLength(1);
