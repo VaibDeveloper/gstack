@@ -84,7 +84,7 @@ function syntheticArtifactInventory(): ProducerArtifactInventory {
 /** Platform-pinned cells get one native installation and provider binary per platform, sharing catalogs and provider policy. */
 function syntheticReceipt(cell: EvalCell): ProducerReceipt {
   const seed = cell.platform ?? '1';
-  const withoutHash: Omit<ProducerReceipt, 'receiptHash'> = { schemaVersion: 1, cell, inputHash: 'e'.repeat(64), installationIdentity: syntheticInstallationIdentity(seed, '1'), providerIdentity: syntheticProviderIdentity(cell.host === 'codex' ? 'gpt' : cell.host, seed), artifacts: syntheticArtifactInventory(), startedAt: '2026-01-01T00:00:00.000Z', finishedAt: '2026-01-01T00:00:01.000Z', status: 'succeeded', requestedModel: cell.model, modelUsed: `resolved-${cell.model}`, modelIdentitySource: 'provider_reported', durationMs: 1000, firstUsefulResultMs: null, toolCalls: 1, output: 'synthetic producer transcript', outputHash: sha256('synthetic producer transcript'), usage: { inputTokens: 10, outputTokens: 5, cachedTokens: 0, estimatedCostUSD: 0.001 } };
+  const withoutHash: Omit<ProducerReceipt, 'receiptHash'> = { schemaVersion: 2, cellRef: cell.id, inputHash: 'e'.repeat(64), installationIdentity: syntheticInstallationIdentity(seed, '1'), providerIdentity: syntheticProviderIdentity(cell.host === 'codex' ? 'gpt' : cell.host, seed), artifacts: syntheticArtifactInventory(), startedAt: '2026-01-01T00:00:00.000Z', finishedAt: '2026-01-01T00:00:01.000Z', status: 'succeeded', requestedModel: cell.model, modelUsed: `resolved-${cell.model}`, modelIdentitySource: 'provider_reported', durationMs: 1000, firstUsefulResultMs: null, toolCalls: 1, output: 'synthetic producer transcript', outputHash: sha256('synthetic producer transcript'), usage: { inputTokens: 10, outputTokens: 5, cachedTokens: 0, estimatedCostUSD: 0.001 } };
   return { ...withoutHash, receiptHash: producerReceiptHash(withoutHash) };
 }
 function syntheticSchedule(target: EvalMatrix = matrix): PreparedEvalSchedule {
@@ -242,6 +242,20 @@ describe('CSO matched evaluation accounting', () => {
     const mixedProvider = syntheticReceipt(cells[1]);
     mixedProvider.providerIdentity = syntheticProviderIdentity('gpt', 'different-provider');
     expect(() => collectProducerReceipts(matrix, syntheticSchedule(), [first, rehashReceipt(mixedProvider)])).toThrow('UNMATCHED_PRODUCER_PROVIDERS');
+  });
+  test('receipts name only an opaque cellRef that the trusted matrix resolves', () => {
+    const cell = matrix.cells.find(item => item.version === 'v3')!, receipt = syntheticReceipt(cell);
+    expect(Object.keys(receipt)).not.toContain('cell'); expect(JSON.stringify(receipt)).not.toMatch(/caseId|variant|vulnerable|"fixed"/);
+    expect(JSON.stringify(receipt)).not.toContain(cell.caseId);
+    const unknown = structuredClone(receipt); unknown.cellRef = 'f'.repeat(64);
+    expect(() => collectProducerReceipts(matrix, syntheticSchedule(), [rehashReceipt(unknown)])).toThrow('UNKNOWN_OR_DUPLICATE_PRODUCER_RECEIPT');
+    const smuggled = rehashReceipt({ ...structuredClone(receipt), cell } as ProducerReceipt);
+    expect(() => collectProducerReceipts(matrix, syntheticSchedule(), [smuggled])).toThrow('INVALID_PRODUCER_RECEIPT');
+    const batch = syntheticBatch();
+    expect(batch.receipts.every(index => index.cellRef === index.cell.id && JSON.stringify(index.cell) === JSON.stringify(matrix.cells.find(item => item.id === index.cellRef)))).toBe(true);
+    const relabeled = structuredClone(batch); relabeled.receipts[0].cellRef = relabeled.receipts[1].cellRef;
+    const { batchHash: _hash, ...rest } = relabeled; relabeled.batchHash = createHash('sha256').update(JSON.stringify(rest)).digest('hex');
+    expect(() => scoreCollectedEval(matrix, relabeled, [], qualification)).toThrow('INVALID_PRODUCER_BATCH');
   });
   test('high/critical recall includes critical cases and detects a v3 regression',()=>{
     const criticalCorpus=structuredClone(corpus);criticalCorpus.cases.find(item=>item.severity==='medium')!.severity='critical';
@@ -550,7 +564,8 @@ describe('CSO matched producer orchestration', () => {
       expect(existsSync(join(destination, 'jobs', cell.id, 'producer-input.json'))).toBe(true);
       const input = JSON.parse(readFileSync(join(destination, 'jobs', cell.id, 'producer-input.json'), 'utf8'));
       expect(input.skill).toBe(skills[cell.version]);
-      expect(input.cell.skillHash).toBe(sha256(input.skill));
+      expect(input.execution.skillHash).toBe(sha256(input.skill));
+      expect(input.cellRef).toBe(cell.id);
       expect(input.skill).toContain(`${cell.version.toUpperCase()}_SECTION_ONLY`);
       expect(input.skill).not.toContain(cell.version === 'v2' ? 'V3_SECTION_ONLY' : 'V2_SECTION_ONLY');
       expect(validatePortableSkillPayload(input.skill, cell.version).files.map(file => file.path)).toEqual(['SKILL.md', 'sections/manifest.json', 'sections/audit-phases.md']);
@@ -953,12 +968,22 @@ describe('CSO matched producer orchestration', () => {
     prepareEvalJobs(release, { v3: skills.v3 }, destination, [other.id, ...(native ? [native.id] : [])], privateCorpus);
     const receipts = join(root(), 'receipts'); mkdirSync(receipts);
     const isolatedOther = isolate(destination, other);
+    const opaque = readFileSync(isolatedOther.input, 'utf8'), parsed = JSON.parse(opaque);
+    expect(Object.keys(parsed).sort()).toEqual(['cellRef', 'execution', 'schemaVersion', 'skill', 'source']);
+    expect(parsed).toMatchObject({ schemaVersion: 2, cellRef: other.id, execution: { mode: 'comprehensive', platform: other.platform, sourceHash: other.sourceHash } });
+    expect(opaque).not.toMatch(/caseId|variant|vulnerable|"fixed"|"version"|repetition/); expect(opaque).not.toContain(other.caseId);
+    const smuggled = isolate(destination, other);
+    writeFileSync(smuggled.input, JSON.stringify({ ...parsed, caseId: other.caseId }));
+    await expect(runProducerCell(smuggled.input, join(receipts, `${other.id}.json`), withHelper({ adapter: new FakeAdapter(() => {}), paidExecutionAuthorized: true }))).rejects.toThrow('INVALID_PRODUCER_INPUT');
     expect(readFileSync(join(isolatedOther.source, 'src/app.txt'), 'utf8')).toBe(`synthetic ${other.caseId} ${other.variant}\n`);
     await expect(runProducerCell(isolatedOther.input, join(receipts, `${other.id}.json`), withHelper({ adapter: new FakeAdapter(() => {}), paidExecutionAuthorized: true }))).rejects.toThrow('UNMATCHED_PRODUCER_PLATFORM');
     if (!native) return;
     const isolatedNative = isolate(destination, native);
     const receipt = await runProducerCell(isolatedNative.input, join(receipts, `${native.id}.json`), withHelper({ adapter: new FakeAdapter(() => {}), paidExecutionAuthorized: true }));
-    expect(receipt.cell).toEqual(native);
+    expect(receipt.cellRef).toBe(native.id);
+    const written = readFileSync(join(receipts, `${native.id}.json`), 'utf8');
+    expect(JSON.parse(written)).not.toHaveProperty('cell');
+    expect(written).not.toMatch(/caseId|variant|vulnerable|"fixed"/); expect(written).not.toContain(native.caseId);
   });
 
   test('seals source read-only and withholds a receipt after a mode/content mutation', async () => {

@@ -22,7 +22,8 @@ const IMAGE_CONTEXT_EXCLUDED = new Set(['README.md', 'qualification.json', 'buil
 export async function imageSourceFiles(root = ROOT): Promise<string[]> {
   const build = await Bun.build({ entrypoints: IMAGE_HELPER_ENTRYPOINTS.map(entry => path.join(root, entry)), target: 'bun', metafile: true });
   if (!build.success || !build.metafile) throw new Error('REQUALIFICATION_SOURCE_CLOSURE_FAILED');
-  const closure = Object.keys(build.metafile.inputs).map(input => path.relative(root, path.resolve(root, input)).split(path.sep).join('/'));
+  // Bun reports metafile inputs relative to the process working directory, not to the entrypoints.
+  const closure = Object.keys(build.metafile.inputs).map(input => path.relative(root, path.resolve(process.cwd(), input)).split(path.sep).join('/'));
   if (closure.some(file => file.startsWith('..') || file.includes('node_modules/'))) throw new Error('REQUALIFICATION_SOURCE_OUTSIDE_REPOSITORY');
   const context = fs.readdirSync(path.join(root, IMAGE_CONTEXT), { withFileTypes: true })
     .filter(entry => entry.isFile() && !IMAGE_CONTEXT_EXCLUDED.has(entry.name))

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -33,6 +33,17 @@ describe('CSO runtime requalification triggers', () => {
     expect(await requalificationTriggers(copy)).toEqual(current);
     writeFileSync(join(copy, 'lib/cso/verifier.ts'), '\n', { flag: 'a' });
     expect((await requalificationTriggers(copy)).preparationSha256).not.toBe(current.preparationSha256);
+  });
+
+  test.skipIf(process.platform==='win32')('triggers resolve against the repository root from any working directory', async () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'cso-requalification-cwd-')); temps.push(elsewhere);
+    const nested = join(elsewhere, 'a', 'b', 'c'); mkdirSync(nested, { recursive: true });
+    const cli = spawnSync(process.execPath, [join(ROOT, 'scripts/cso-requalification.ts'), 'triggers'], { cwd: nested, encoding: 'utf8', timeout: 30_000 });
+    expect(cli.status, cli.stderr).toBe(0); expect(JSON.parse(cli.stdout)).toEqual(current);
+    const copy = join(elsewhere, 'deeper', 'checkout'); mkdirSync(copy, { recursive: true });
+    cpSync(join(ROOT, 'lib'), join(copy, 'lib'), { recursive: true });
+    expect(await requalificationTriggers(copy)).toEqual(current);
+    expect(await imageSourceFiles(copy)).toEqual(await imageSourceFiles());
   });
 
   test('a promoted catalog names each trigger that changed after qualification', () => {

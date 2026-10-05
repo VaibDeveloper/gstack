@@ -127,8 +127,12 @@ gstack helper/runtime files. Do not install or copy any CSO `SKILL.md`, carved
 section, generated skill tree, schedule, this repository checkout,
 sibling jobs, fixed alternatives, or evaluator code to that filesystem. The
 producer runner reads its opaque control file into memory and deletes it before
-the agent process starts, so the case identifier and vulnerable/fixed label are
-not agent inputs. Copy the selected hash-named directory as the literal path
+the agent process starts. That file never names the case, variant, version, or
+repetition: it is `{schemaVersion: 2, cellRef, skill, source, execution}`, where
+`cellRef` is the matrix cell id and `execution` holds only the mode, model, host,
+budget, source and skill hashes, and platform. The receipt binds `cellRef` and
+`inputHash`, and `collect` rebuilds each cell from the matrix, so neither file
+tells an agent with root on its cell VM which answer it is graded against. Copy the selected hash-named directory as the literal path
 `/producer/job`; `/producer` must contain only `job`. Put the runner in a system
 tool directory and use a separate receipt mount. The runner rejects the full
 prepared batch layout, extra files beside `job`, a reused job with prior state,

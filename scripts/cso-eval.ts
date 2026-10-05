@@ -11,6 +11,7 @@ import { loadCorpusManifest, materializeCase, publicCorpus, STACKS, validateCorp
 import {
   PRODUCER_PLATFORMS,
   producerArtifactInventoryHash,
+  producerExecution,
   producerInputHash,
   producerInstallationIdentityHash,
   producerProviderIdentityHash,
@@ -358,7 +359,7 @@ export function prepareEvalJobs(matrix: EvalMatrix, payloads: Partial<Record<Eva
     const source = materializeCase(cell.caseId, cell.variant, join(jobRoot, 'source'), corpus);
     if (source.sourceHash !== cell.sourceHash) throw new Error('CORPUS_INTEGRITY_MISMATCH');
     initializeFixtureRepository(source.path);
-    const input: ProducerInput = { schemaVersion: 1, cell, skill: payloads[cell.version]!, source: sourceEntries(corpus, cell.caseId, cell.variant) };
+    const input: ProducerInput = { schemaVersion: 2, cellRef: cell.id, skill: payloads[cell.version]!, source: sourceEntries(corpus, cell.caseId, cell.variant), execution: producerExecution(cell) };
     const inputHash = producerInputHash(input);
     safeWriteNew(join(jobRoot, 'producer-input.json'), input);
     jobs.push({ cellId: cell.id, relativePath: `jobs/${cell.id}`, inputHash });
@@ -379,7 +380,7 @@ function validateSchedule(matrix: EvalMatrix, schedule: PreparedEvalSchedule): v
 }
 
 function validateReceipt(receipt: ProducerReceipt, cell: EvalCell, inputHash: string): void {
-  if (receipt?.schemaVersion !== 1 || JSON.stringify(receipt.cell) !== JSON.stringify(cell) || receipt.inputHash !== inputHash || receipt.requestedModel !== cell.model || !['succeeded', 'failed'].includes(receipt.status) || typeof receipt.modelUsed !== 'string' || !receipt.modelUsed || !['provider_reported', 'requested_pin'].includes(receipt.modelIdentitySource) || (receipt.modelIdentitySource === 'requested_pin' && receipt.modelUsed !== receipt.requestedModel) || (receipt.modelIdentitySource === 'provider_reported' && receipt.modelUsed === receipt.requestedModel) || !validNumber(receipt.durationMs) || receipt.firstUsefulResultMs !== null || !Number.isSafeInteger(receipt.toolCalls) || receipt.toolCalls < 0 || typeof receipt.output !== 'string' || receipt.outputHash !== sha256(receipt.output) || !HEX.test(receipt.receiptHash)) throw new Error('INVALID_PRODUCER_RECEIPT');
+  if (receipt?.schemaVersion !== 2 || receipt.cellRef !== cell.id || 'cell' in receipt || receipt.inputHash !== inputHash || receipt.requestedModel !== cell.model || !['succeeded', 'failed'].includes(receipt.status) || typeof receipt.modelUsed !== 'string' || !receipt.modelUsed || !['provider_reported', 'requested_pin'].includes(receipt.modelIdentitySource) || (receipt.modelIdentitySource === 'requested_pin' && receipt.modelUsed !== receipt.requestedModel) || (receipt.modelIdentitySource === 'provider_reported' && receipt.modelUsed === receipt.requestedModel) || !validNumber(receipt.durationMs) || receipt.firstUsefulResultMs !== null || !Number.isSafeInteger(receipt.toolCalls) || receipt.toolCalls < 0 || typeof receipt.output !== 'string' || receipt.outputHash !== sha256(receipt.output) || !HEX.test(receipt.receiptHash)) throw new Error('INVALID_PRODUCER_RECEIPT');
   const { receiptHash, ...withoutHash } = receipt;
   if (producerReceiptHash(withoutHash) !== receiptHash) throw new Error('INVALID_PRODUCER_RECEIPT');
   const started = Date.parse(receipt.startedAt), finished = Date.parse(receipt.finishedAt);
@@ -424,7 +425,7 @@ function validateArtifactInventory(inventory: ProducerArtifactInventory, error: 
 }
 
 function validateReceiptIndex(receipt: ProducerReceiptIndex, cell: EvalCell): void {
-  if (!receipt || receipt.schemaVersion !== 1 || JSON.stringify(receipt.cell) !== JSON.stringify(cell) || !HEX.test(receipt.inputHash) || receipt.requestedModel !== cell.model || !receipt.modelUsed || !['provider_reported', 'requested_pin'].includes(receipt.modelIdentitySource) || (receipt.modelIdentitySource === 'requested_pin' && receipt.modelUsed !== receipt.requestedModel) || (receipt.modelIdentitySource === 'provider_reported' && receipt.modelUsed === receipt.requestedModel) || !['succeeded', 'failed'].includes(receipt.status) || !HEX.test(receipt.outputHash) || !HEX.test(receipt.receiptHash) || !validNumber(receipt.durationMs) || receipt.firstUsefulResultMs !== null || !Number.isSafeInteger(receipt.toolCalls) || receipt.toolCalls < 0 || !receipt.usage) throw new Error('INVALID_PRODUCER_BATCH');
+  if (!receipt || receipt.schemaVersion !== 2 || receipt.cellRef !== cell.id || JSON.stringify(receipt.cell) !== JSON.stringify(cell) || !HEX.test(receipt.inputHash) || receipt.requestedModel !== cell.model || !receipt.modelUsed || !['provider_reported', 'requested_pin'].includes(receipt.modelIdentitySource) || (receipt.modelIdentitySource === 'requested_pin' && receipt.modelUsed !== receipt.requestedModel) || (receipt.modelIdentitySource === 'provider_reported' && receipt.modelUsed === receipt.requestedModel) || !['succeeded', 'failed'].includes(receipt.status) || !HEX.test(receipt.outputHash) || !HEX.test(receipt.receiptHash) || !validNumber(receipt.durationMs) || receipt.firstUsefulResultMs !== null || !Number.isSafeInteger(receipt.toolCalls) || receipt.toolCalls < 0 || !receipt.usage) throw new Error('INVALID_PRODUCER_BATCH');
   const started = Date.parse(receipt.startedAt), finished = Date.parse(receipt.finishedAt);
   if (!Number.isFinite(started) || !Number.isFinite(finished) || finished < started || !['inputTokens', 'outputTokens', 'cachedTokens', 'estimatedCostUSD'].every(field => receipt.usage[field as keyof typeof receipt.usage] === null || validNumber(receipt.usage[field as keyof typeof receipt.usage])) || ((receipt.status === 'failed') !== !!receipt.error) || (receipt.error && !receipt.error.code)) throw new Error('INVALID_PRODUCER_BATCH');
   validateInstallationIdentity(receipt.installationIdentity, 'INVALID_PRODUCER_BATCH');
@@ -473,24 +474,26 @@ export function collectProducerReceipts(matrix: EvalMatrix, schedule: PreparedEv
   const jobs = new Map(schedule.jobs.map(job => [job.cellId, job]));
   const seen = new Set<string>();
   for (const receipt of receipts) {
-    const cell = cells.get(receipt?.cell?.id), job = jobs.get(receipt?.cell?.id);
+    const cell = cells.get(receipt?.cellRef), job = jobs.get(receipt?.cellRef);
     if (!cell || !job || seen.has(cell.id)) throw new Error('UNKNOWN_OR_DUPLICATE_PRODUCER_RECEIPT');
     validateReceipt(receipt, cell, job.inputHash); seen.add(cell.id);
   }
-  assertPlatformIdentities(receipts);
-  const pairs = new Map<string, Partial<Record<EvalVersion, ProducerReceipt>>>();
-  if (profileOf(matrix) === 'full') for (const receipt of receipts) {
+  // Receipts name only the opaque cellRef; the trusted matrix supplies the cell.
+  const bound = receipts.map(receipt => ({ ...receipt, cell: cells.get(receipt.cellRef)! }));
+  assertPlatformIdentities(bound);
+  const pairs = new Map<string, Partial<Record<EvalVersion, (typeof bound)[number]>>>();
+  if (profileOf(matrix) === 'full') for (const receipt of bound) {
     const key = matchedPairKey(receipt.cell as EvalCell);
     const pair = pairs.get(key) ?? {}; pair[receipt.cell.version] = receipt; pairs.set(key, pair);
   }
-  else if (new Set(receipts.map(receipt => receipt.modelUsed)).size > 1) throw new Error('UNMATCHED_EFFECTIVE_MODELS: single-version cells used different normalized model identities');
-  const completePairs = [...pairs.entries()].filter(([, pair]) => pair.v2 && pair.v3) as Array<[string, { v2: ProducerReceipt; v3: ProducerReceipt }]>;
+  else if (new Set(bound.map(receipt => receipt.modelUsed)).size > 1) throw new Error('UNMATCHED_EFFECTIVE_MODELS: single-version cells used different normalized model identities');
+  const completePairs = [...pairs.entries()].filter(([, pair]) => pair.v2 && pair.v3) as Array<[string, { v2: (typeof bound)[number]; v3: (typeof bound)[number] }]>;
   const modelMismatches = completePairs.filter(([, pair]) => pair.v2.modelUsed !== pair.v3.modelUsed).map(([pair, value]) => ({ pair: digest(pair), v2: value.v2.modelUsed, v3: value.v3.modelUsed }));
   if (modelMismatches.length) throw new Error(`UNMATCHED_EFFECTIVE_MODELS: ${modelMismatches.length} matched v2/v3 pair(s) used different normalized model identities`);
   const groups: ProducerGroupSummary[] = [];
   for (const [version, mode] of PROFILE_GROUPS[profileOf(matrix)]) {
     const expected = matrix.cells.filter(cell => cell.version === version && cell.mode === mode);
-    const submitted = receipts.filter(receipt => receipt.cell.version === version && receipt.cell.mode === mode);
+    const submitted = bound.filter(receipt => receipt.cell.version === version && receipt.cell.mode === mode);
     const tokens = submitted.flatMap(receipt => receipt.usage.inputTokens === null || receipt.usage.outputTokens === null ? [] : [receipt.usage.inputTokens + receipt.usage.outputTokens]);
     const costs = submitted.flatMap(receipt => receipt.usage.estimatedCostUSD === null ? [] : [receipt.usage.estimatedCostUSD]);
     groups.push({ version, mode, scheduled: expected.length, submitted: submitted.length, missing: expected.length - submitted.length, succeeded: submitted.filter(receipt => receipt.status === 'succeeded').length, failed: submitted.filter(receipt => receipt.status === 'failed').length,
@@ -500,9 +503,9 @@ export function collectProducerReceipts(matrix: EvalMatrix, schedule: PreparedEv
       estimatedCost: { measured: costs.length, denominator: expected.length, totalUSD: costs.length ? costs.reduce((sum, value) => sum + value, 0) : null, source: 'pricing-table-estimate' },
     });
   }
-  const indexes: ProducerReceiptIndex[] = receipts.map(({ output: _output, error, ...receipt }) => ({ ...receipt, ...(error ? { error: { code: error.code } } : {}) }));
+  const indexes: ProducerReceiptIndex[] = bound.map(({ output: _output, error, ...receipt }) => ({ ...receipt, ...(error ? { error: { code: error.code } } : {}) }));
   const base = { schemaVersion: 1 as const, matrixHash: matrixHash(matrix), scheduleHash: digest(JSON.stringify(schedule)), receipts: indexes.sort((left, right) => left.cell.id.localeCompare(right.cell.id)), summary: {
-    scheduled: matrix.cells.length, prepared: schedule.preparedCells, submitted: receipts.length, missing: matrix.cells.length - receipts.length,
+    scheduled: matrix.cells.length, prepared: schedule.preparedCells, submitted: bound.length, missing: matrix.cells.length - bound.length,
     matchedPairsExpected: expectedMatchedPairs(matrix), matchedPairsSubmitted: completePairs.length, modelMismatches, groups,
     note: 'Costs are pricing-table estimates. First-useful timing is unmeasured because the reused provider adapters return completed runs. Trusted findings and runtime outcomes require separate oracle adjudication.',
   } };
@@ -785,7 +788,7 @@ function validateCollectedBatch(matrix: EvalMatrix, batch: ProducerBatch, observ
   const cells = new Map(matrix.cells.map(cell => [cell.id, cell]));
   const receipts = new Map<string, ProducerReceiptIndex>();
   for (const receipt of batch.receipts) {
-    const cell = cells.get(receipt?.cell?.id);
+    const cell = cells.get(receipt?.cellRef);
     if (!cell || receipts.has(cell.id)) throw new Error('INVALID_PRODUCER_BATCH');
     validateReceiptIndex(receipt, cell); receipts.set(cell.id, receipt);
   }
