@@ -2003,9 +2003,11 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
     await handleTunnel(commandArgs); // always exits
   }
 
-  // Special case: chain reads from stdin
+  // Special case: chain reads from stdin. Synchronous on purpose: on Windows,
+  // `await Bun.stdin.text()` inside this un-awaited main() does not keep the
+  // event loop alive, so the CLI exited 0 before reading anything.
   if (command === 'chain' && commandArgs.length === 0) {
-    const stdin = await Bun.stdin.text();
+    const stdin = fs.readFileSync(0, 'utf8');
     commandArgs.push(stdin.trim());
   }
 
