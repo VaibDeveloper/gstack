@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { panelVerdict, type TrialOutcomeRecord } from '../../test/helpers/eval-store';
 import { HEADROOM_FAIL, HEADROOM_WARN } from '../../test/helpers/eval-budgets';
 import { sanitizeFixedFenceLine } from './published-text';
-import type { HistoryFetcher, WeeklyRun } from '../eval-flake-rank';
+import type { HistoryFetcher, WeeklyRun } from './ci-history';
 import { CASE_SHARDED_FILES, trialShardKey } from './paid-cases';
 import { shardSlug } from '../test-paid-shards';
 import { CENSUS_RED_GUIDE } from './paid-report';

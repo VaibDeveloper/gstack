@@ -2,65 +2,26 @@
  * Paid-lane local diagnosis and the report: JUnit parsing, panel verdicts, history records and the human readout. Moved from scripts/test-paid-shards.ts.
  */
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { createBootstrapRetentionScope } from '../../test/helpers/bootstrap-retention';
+import { normalizeRelativePath } from './shard-engine';
+import { EVAL_POLICY } from '../../test/helpers/periodic-exclude-data';
+import { STALL_WINDOW_MS } from '../../test/helpers/eval-budgets';
 import {
-  BunTestOutputClassifier,
-  createShardSandbox,
-  exactTestFileSelectors,
-  forwardAndClassify,
-  isTerminationRequested,
-  nextShardLogPath,
-  normalizeRelativePath,
-  openShardLog,
-  parseCliFlags,
-  readDurationSeed,
-  removeShardSandbox,
-  runShardChild,
-  strictShardStatus,
-  writeDurationSeed,
-  zeroExecutionVerdict,
-  type LanePolicy,
-  type ShardChildResult,
-  type ShardLog,
-} from './shard-engine';
-import { PAID_TEST_GLOBS, isPaidTestFile } from '../../test/helpers/paid-test-set';
-import { CASE_CI_EXCLUDE, CASE_QUARANTINE, EVAL_POLICY, PERIODIC_CI_EXCLUDE } from '../../test/helpers/periodic-exclude-data';
-import { FILE_RETRY_BUDGETS, STALL_WINDOW_MS, STRICT_RETRY_CASE_BUDGETS } from '../../test/helpers/eval-budgets';
-import {
-  getProjectEvalDir, getClaudeCliVersion, isFinalizedEvalResultFile, evalEntryOutcome, failureClassOf, panelVerdict,
-  sanitizeTrialError, formatTrialOutcomes, CONTRACT_VIOLATIONS_FILE, TRIAL_ENV, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
-  type EvalCaseKind, type PanelShape, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
+  isFinalizedEvalResultFile, failureClassOf, panelVerdict, sanitizeTrialError, formatTrialOutcomes, TRIAL_OUTCOME_SCHEMA, TRIAL_OUTCOMES_FILE,
+  type EvalCaseKind, type PanelVerdict, type TrialFailureClass, type TrialOutcome, type TrialOutcomeRecord,
   trialCostKnown, trialFailureFields, trialSessions, type TrialFailureDetail,
 } from '../../test/helpers/eval-store';
 import { readSessionLedger, type SessionLedgerRow } from '../../test/helpers/session-ledger';
 import { publishedFence, sanitizeFixedFenceLine } from './published-text';
 import { E2E_KINDS } from '../../test/helpers/touchfiles-data';
 import { manualReviewProblem } from '../../test/helpers/cookie-workflow-manual-review';
-import { preflightAnthropicApi } from '../../test/helpers/anthropic-preflight';
-import { OVERLAY_MIN_FILE_WALL_MS } from '../../test/helpers/overlay-case-policy';
-import { PR_PROFILE_CASE_IDS, PR_PROFILE_FILES, packageChangeOnlyVersion, selectPrProfile, type PrProfileSelection } from '../test-pr-profile';
-import { e2eReuseLaneProblem, prepareE2EShardReuse, selectPlanReceipts, writeNegativeReceipt, writePanelReceipt } from '../e2e-shard-reuse';
-
-import {
-  detectBaseBranch,
-  getChangedFiles,
-  selectTests,
-  E2E_TOUCHFILES,
-  E2E_TIERS,
-  LLM_JUDGE_TOUCHFILES,
-  GLOBAL_TOUCHFILES,
-} from '../../test/helpers/touchfiles';
-
-export { PAID_TEST_GLOBS, isPaidTestFile };
-export { PERIODIC_CI_EXCLUDE };
-
-type E2EShardReuse = NonNullable<ReturnType<typeof prepareE2EShardReuse>>;
-import { CASE_TEST_NAMES, type CaseTrialPlan, caseTestNamePattern, caseTrialPlan, shardCaseId, shardFile, trialShardKey } from './paid-cases';
+import { writeNegativeReceipt, writePanelReceipt } from '../e2e-shard-reuse';
+import { E2E_TOUCHFILES, E2E_TIERS, LLM_JUDGE_TOUCHFILES } from '../../test/helpers/touchfiles';
+import { CASE_TEST_NAMES, type CaseTrialPlan, caseTestNamePattern, caseTrialPlan, fileCaseRegistration, shardCaseId, shardFile, trialShardKey } from './paid-cases';
 import { type ManifestEntry, PAID_TEST_DURATIONS_FILE, type PaidRunManifest, type SliceResult, collectorOutcomeCounts, formatProfileCoverage, loadPaidTestDurations, mergePaidTestDurations, parseRunManifest, trialPanelKey, verifySliceResults, writePaidTestDurations } from './paid-plan';
-import { DEFAULT_JOBS, type PaidCaseSelection, type PaidTier, ROOT, type RunShardsOptions, type ShardTrialRecord, collectPaidTestFiles, fileCaseRegistration, isAllSkippedPass, runPaidShards, shardSlug, paidSelectionEnv } from '../test-paid-shards';
+import { DEFAULT_JOBS, type PaidCaseSelection, type PaidTier, ROOT, type ShardTrialRecord } from './paid-types';
+import { collectPaidTestFiles, isAllSkippedPass, shardSlug, paidSelectionEnv } from './paid-select';
+import type { RunShardsOptions } from '../test-paid-shards';
 
 // ─── Local diagnosis: one case through the CI panel runner (A9) ────────────
 
@@ -83,7 +44,7 @@ export function caseSelection(id: string, rootDir = ROOT, discovered = collectPa
     return { file, source, ...fileCaseRegistration(file, source) };
   }).filter(f => f.registered.includes(id));
   const owners = files.filter(f => f.known).length ? files.filter(f => f.known) : files;
-  if (owners.length !== 1) throw new Error(`--case ${id}: ${owners.length ? `registered by ${owners.map(f => f.file).join(', ')}` : 'no paid file registers it'}; it needs exactly one`);
+  if (owners.length !== 1) throw new Error(`--case ${id}: ${owners.length ? `registered by ${owners.map(f => f.file).join(', ')}` : 'no paid file statically registers it'}; it needs exactly one`);
   const owner = owners[0]!;
   const name = escapeRe(CASE_TEST_NAMES[id] ?? id);
   if (new RegExp(`\\b(?:test|it|test\\.\\w+|test(?:Concurrent)?IfSelected)\\s*\\(\\s*(['"\`])${name}\\1|testName\\s*:\\s*(['"\`])${name}\\2`).test(owner.source)) {
@@ -120,6 +81,8 @@ export async function runCaseDiagnosis(id: string, options: {
   const keys = Array.from({ length: n }, (_, i) => trialShardKey(file, id, i + 1));
   const tier = E2E_TIERS[id] as PaidTier;
   log(`[test:paid] --case ${id}: ${n} trial(s) of ${file} (kind ${plan.kind}, PASS at ${plan.panel.k}/${n}${plan.quarantined ? ', quarantined' : ''}), tier=${tier}`);
+  // The runner is the CLI module; load it lazily so this library never imports it statically (no cycle).
+  const { runPaidShards } = await import('../test-paid-shards');
   const shardOptions = { withinShardConcurrency: options.withinShardConcurrency, timeoutMs: options.timeoutMs, rootDir, log, commandFor: options.commandFor,
     env: { ...(options.env ?? process.env), EVALS: '1', EVALS_TIER: tier, EVALS_PREFLIGHT_OK: '1', EVALS_ALL: '1',
       ...paidSelectionEnv('full', { e2e: [id], judges: [] }, `--case ${id}`) } };

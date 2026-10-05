@@ -11,7 +11,7 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { scan } from '../lib/redact-engine';
-import { caseSeriesIdentities } from '../scripts/eval-flake-rank';
+import { caseSeriesIdentitiesV2, treeEntries } from '../scripts/eval-trial-series';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const DIR = path.join(import.meta.dir, 'fixtures', 'detector-corpora');
@@ -69,9 +69,9 @@ describe.each(cases)('%s corpus', (c) => {
 });
 
 test('stale corpus entries are reported for refresh', () => {
-  const current = caseSeriesIdentities(cases, ROOT);
-  const stale = cases.flatMap(c => entries(c).filter(entry => entry.json.series_identity !== current[c])
-    .map(entry => `${c}/${entry.file} (series ${entry.json.series_identity}, current ${current[c]})`));
+  const current = caseSeriesIdentitiesV2(cases, treeEntries(ROOT));
+  const stale = cases.flatMap(c => entries(c).filter(entry => entry.json.series_identity !== current[c]!.identity)
+    .map(entry => `${c}/${entry.file} (series ${entry.json.series_identity}, current ${current[c]!.identity})`));
   if (stale.length) console.log(`[detector-corpora] ${stale.length} stale entr${stale.length === 1 ? 'y' : 'ies'} (refresh from a current census when one fails):\n  ${stale.join('\n  ')}`);
   expect(Object.keys(current).sort()).toEqual(cases);
 });

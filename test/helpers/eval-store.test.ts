@@ -30,6 +30,7 @@ import {
 import type { EvalResult, EvalTestEntry, ComparisonResult, PanelTrial, TrialOutcomeRecord } from './eval-store';
 import { EVAL_POLICY } from './periodic-exclude-data';
 import { manualReviewFixture } from './manual-judge-review-fixture';
+// The frozen EVAL_POLICY v1 reader (test/fixtures/trial-record-v1-reader.ts).
 import { trialRecordProblems as trialRecordProblemsV1 } from '../fixtures/trial-record-v1-reader';
 
 let tmpDir: string;

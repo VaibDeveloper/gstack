@@ -2,19 +2,20 @@
 
 ## NEXT PRIORITY
 
-### P2/P3: reliability follow-ups deferrals (filed 2026-10-04, v1.91.24.0)
+### P2/P3: reliability follow-ups deferrals (filed 2026-10-04, v1.91.26.0)
 
 Deferred from the approved reliability follow-ups plan (docs/designs/RELIABILITY_FOLLOWUPS_2026_10.md), each with its reason.
 
-- **Pre-push hook hang behind shard neighbors (B5)** — in CI both attempts of
-  one free shard hung about half the `spawnSync` calls of
-  `bun bin/gstack-redact-prepush`; four local reproductions at the failing
-  revision (bare, the exact `--ci-run --shard 12`, 2 CPUs, HEAD) all passed.
-  The hook's only blocking calls are `readFileSync(0)` and git `spawnSync`
-  without a timeout. Hypothesis: an inherited pipe end keeps stdin open on the
-  2-vCPU runner. Next step: reproduce on a GitHub-hosted runner or Ubicloud
-  with `strace -f` on the hook; once confirmed, give the hook's git calls a
-  timeout. **Effort:** M. **Priority:** P2.
+- **Free-suite git hang behind shard neighbors (B5): Bun spawnSync loses the
+  child's exit (oven-sh/bun#34069, open upstream)** — CI shard 1 (PR runs
+  37242691914 and earlier) timed out `execFileSync`/`spawnSync` git calls in
+  redact-prepush-rebase-force-push, render-sections-provenance and
+  shared-libs-stage-actor. A watcher on Ubicloud caught it: every "hung" git is a
+  zombie (exited, never reaped) while the `bun test` main thread runs, matching
+  the upstream report. CI's shard-1 file list reproduces it in about 3 of 60
+  runs (none of 20 without pty-workspace-trust, not significant). Next step:
+  move the git calls in shared fixture helpers to async spawn with a hard
+  timeout, or take a Bun release that fixes #34069. **Effort:** M. **Priority:** P2.
 - **Judge rubric anchors (C1, needs Garry: EVAL_POLICY)** — the pre-registered
   control panels (`docs/evals/judge-controls-2026-10.md`, 36 calls) showed
   every workflow judge separates gross breakage, but the qa workflow judge
@@ -91,11 +92,40 @@ Deferred from the approved reliability follow-ups plan (docs/designs/RELIABILITY
   with the stock Claude Code/Codex agent on product outcomes (the overlay
   harness covers model-level deltas only). Its own project. **Effort:** L. **Priority:** P3.
 
+### P1–P3: test/eval/CI audit wave follow-ups (filed 2026-10-04)
+
+From the approved 2026-10 test/eval/CI audit plan; the audit PR files these.
+
+- **Post-merge audit metrics (due merge + 7 days)** — run
+  `bun run test:health --since-days 7` and record the PR full-fallback rate,
+  recorded PR-lane spend per merged PR (target: down at least 50%), cancelled
+  slice-minutes per week, push-to-verdict p50/p95 and the free flaky-pass rate in
+  `docs/test-audit-2026-10.md` as a dated follow-up. **Effort:** S. **Priority:** P1.
+- **Census reliability metric (due after the fourth scheduled census after merge,
+  about merge + 28 days)** — run `bun run test:health --since-days 28` and record
+  expected failed trials per periodic run (target at most 1.0) and per gate census
+  (target at most 0.5), each as raw trial failure rate, false-blocking probability
+  and the old-policy re-aggregation. A miss opens a P1 entry here with the per-kind,
+  per-failure-class breakdown. **Effort:** S. **Priority:** P1.
+- **Remove the one-release command stubs** — delete the retired package scripts
+  (`test:evals`, `test:evals:all`, `test:e2e`, `test:e2e:all`, `test:gate`,
+  `test:periodic`, `test:codex`, `test:codex:all`, `eval:bg`, `eval:bg:all`,
+  `eval:flake-rank`, `eval:watch`, `test:audit`), `scripts/retired-command.ts`,
+  `test/retired-commands.test.ts` and CONTRIBUTING.md's "Retired commands" table.
+  They exist only to redirect old agent memories and docs. **Depends on:** the
+  audit release shipped. **Effort:** S. **Priority:** P2.
+- **Reclaim `test:gate` / `test:periodic` for the sharded runner** — after the
+  stubs are gone, point the short names at `test-paid-shards.ts` and retire the
+  `:sharded` suffix. **Depends on:** stub removal. **Effort:** S. **Priority:** P3.
+- **One diff-aware command for free + paid checks** — plan `test:quick` and the
+  paid PR profile from the same touchfile closure so one command answers "what
+  does my diff need?". **Effort:** M. **Priority:** P3.
+
 ### P2/P3: severe fix wave follow-ups (filed 2026-10-03, v1.91.19.0)
 
 Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10.md), each with its reason.
 
-- ~~**Enforce the Bun floor at setup (#2815)**~~ — done in v1.91.24.0: setup refuses Bun below 1.3.3 and warns below 1.4.0; auto-update and /gstack-upgrade check the incoming floor before moving the checkout. Original note: — `engines.bun` is now `>=1.4.0`
+- ~~**Enforce the Bun floor at setup (#2815)**~~ — done in v1.91.26.0: setup refuses Bun below 1.3.3 and warns below 1.4.0; auto-update and /gstack-upgrade check the incoming floor before moving the checkout. Original note: — `engines.bun` is now `>=1.4.0`
   (the CI pin), but Bun does not enforce `engines` and setup never checks the
   version. Bun older than 1.3.3 silently ignores `--no-compile-autoload-dotenv`
   and `--no-env-file` (verified with 1.3.2), so D0's protection against a
@@ -109,12 +139,12 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
 - **C8 router wording behind a routing panel** — disabled skills now leave the
   router, but the "When in doubt, invoke the skill" wording change (Tier 3) was
   not run through a routing eval panel. **Effort:** S. **Priority:** P3.
-- ~~**Cross-block variables on fresh-shell hosts: make-pdf `$P`**~~ — done in v1.91.24.0: env-var hosts re-derive `$P` in every block (MAKE_PDF_BIN honored). Original note: — make-pdf
+- ~~**Cross-block variables on fresh-shell hosts: make-pdf `$P`**~~ — done in v1.91.26.0: env-var hosts re-derive `$P` in every block (MAKE_PDF_BIN honored). Original note: — make-pdf
   "exports" `$P` for later blocks, which Codex and the other env-var hosts lose
   between blocks (same class as `$B`/`$D`, which the shared prelude now
   re-derives). Add `P` to the runtime prelude or resolve it per block.
   **Effort:** S. **Priority:** P2.
-- ~~**#2709's recorded-Chromium reap never runs on Playwright 1.62**~~ — done in v1.91.24.0: the owned headless launch records the browser PID over CDP `SystemInfo.getProcessInfo`. Original note: — Playwright
+- ~~**#2709's recorded-Chromium reap never runs on Playwright 1.62**~~ — done in v1.91.26.0: the owned headless launch records the browser PID over CDP `SystemInfo.getProcessInfo`. Original note: — Playwright
   1.62's `Browser` has no `process()`, so `chromiumProcInfo` is always null and
   the cleanup is a no-op (verified by probe). Record the PID another way (CDP
   `SystemInfo.getProcessInfo` or the launch server). **Effort:** S. **Priority:** P2.
@@ -316,10 +346,24 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   stealth/tab tests, pty-workspace-trust, heredoc-pipe-deadlock among them)
   leaves state the hook's blocking path waits on. Reproduce with that shard's
   plan under xvfb and GSTACK_EXPECT_BINARIES=1. Effort S.
+  **Progress (2026-10 audit):** not reproduced. The failing shard-12 plan of run
+  36714493424, replayed at its head (dfe5e733) and on 2db0b3a in one process
+  under xvfb with the runner's sandbox environment, with and without `CI=true`,
+  does not hang. The CI logs show the hang is not hook-specific: `beforeEach` git
+  calls and `bash -c` children in that file also time out, one run killed up to
+  27 dangling processes, and the escape-valve case that never runs git hung too.
+  Next step: capture a process-tree dump of the dangling children when a test in
+  that file times out.
 - **Let pass-rate history decide the rest** — every census on this branch had
   a different handful of single-trial reds. Once `eval:pass-rates` has 10 weekly
   trials per case, apply the CASE_QUARANTINE entry rule instead of chasing one
   run at a time. Effort S.
+  **Progress (2026-10 audit):** EVAL_POLICY v2 makes series case-owned, but the
+  D1 backtest shows no blocking case reaches 10 qualifying trials under the
+  approved weekly history (main scheduled runs plus main dispatches), so
+  quarantine stays unreachable; census redness is fixed at source and tracked by
+  `test:health`. The options and the pending decision are in
+  docs/test-audit-2026-10.md, "What the backtest shows".
 
 ### P2/P3: mvanhorn fix-wave deferrals (filed 2026-10-03, from the autoplan review of the wave)
 
@@ -4068,7 +4112,11 @@ runner's per-run log.
 **Where:** scripts/test-paid-shards.ts runPaidShard buffered path.
 **Effort:** S (human ~2h, CC ~10min).
 
-### P3: Eval Docker image freshness tripwire
+### Won't do (2026-10 audit): Eval Docker image freshness tripwire
+
+Obsolete: Dockerfile.ci pins the Claude CLI (bumps ride PRs), and ci-image.yml
+is deleted because the eval workflows build and push the content-hash tag
+themselves. The original entry follows for history.
 
 **What:** The cache-key trio means the image rebuilds only when Dockerfile/bun.lock
 change; freshness of the baked unpinned claude CLI now rides entirely on
@@ -4751,7 +4799,11 @@ low present-day value.
 
 **Effort:** M (human ~2 days, CC ~1h). **Depends on:** none.
 
-### P3: eval-watch shard-awareness
+### Won't do (2026-10 audit): eval-watch shard-awareness
+
+`scripts/eval-watch.ts` and `eval:watch` are deleted: no supported paid entry
+point is unsharded, and live progress comes from the detach log or
+`gh run watch`. The original entry follows for history.
 
 **What:** Teach `scripts/eval-watch.ts` (hardcoded `_partial-e2e.json` path at
 ~line 17) about the sharded layout: watch `<evalDir>/shards/*/_partial-e2e.json`
