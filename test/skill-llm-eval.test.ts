@@ -669,12 +669,11 @@ describeIfSelected('Other skill evals', [
       judgeContext: 'a pre-landing review with bounded exploratory QA',
       judgeGoal: 'how to review and explore changed behavior even for small diffs without a plan or server, preserve report-only discovery and the test_stub ASK gate, handle incomplete probes honestly, and rerun affected evidence after approved repairs',
       agentCapability: 'frontier',
-      // This ~64k-token bundle is the largest workflow input. At default effort, thinking reached 6.9k output
-      // tokens and 88 s in 24 measured samples, and a CI sample spent all 8192 tokens without an answer.
-      // Medium kept 24 of 24 under 5k tokens and 63 s with the same gating scores; the budget is no cap.
+      // This ~64k-token bundle is the largest workflow input. Thinking and the answer share max_tokens:
+      // at default effort, 24 measured samples used up to 6.9k output tokens and a CI sample spent all
+      // 8192 without an answer. The ship-sized streaming cap removes truncation; effort stays default.
       maxTokens: 65_536,
       stream: true,
-      effort: 'medium',
     });
   }, WORKFLOW_JUDGE_TEST_MS);
 
