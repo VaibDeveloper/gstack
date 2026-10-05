@@ -342,6 +342,14 @@ export const KNOWN_WINDOWS_INCOMPATIBLE: Array<{ file: string; reason: string }>
     reason: 'tests the contained repair witness with POSIX private-directory and compiled-helper assumptions; comprehensive execution is unavailable on Windows',
   },
   {
+    file: 'test/cso-native-evidence.test.ts',
+    reason: 'runs the Linux Docker qualification suites to read their real Bun JUnit report; native gate evidence is produced only on the Linux staging runners',
+  },
+  {
+    file: 'test/cso-requalification.test.ts',
+    reason: 'digests the image-embedded repository bytes exactly as the Linux release runners check them out; a Windows checkout may rewrite line endings, and requalification triggers are produced only in Linux staging',
+  },
+  {
     file: 'test/shard-engine-equivalence.test.ts',
     reason: 'its classification golden was recorded from the POSIX runners (process-group wall kill); the win32 engine path is pinned by the mocked-platform case in shard-engine.test.ts',
   },
